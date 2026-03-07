@@ -537,6 +537,12 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/standalone")
+def standalone():
+    """Serve the standalone HTML version (no server APIs needed)."""
+    return send_file(BASE_DIR / "formflow.html")
+
+
 @app.route("/api/kb", methods=["GET"])
 def get_knowledge_base():
     return jsonify({
