@@ -3,7 +3,7 @@ name: Deploy FormFlow to Hostinger
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'form-filler/public/**'
       - 'form-filler/formflow.html'
