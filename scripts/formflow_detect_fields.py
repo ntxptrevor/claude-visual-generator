@@ -18,9 +18,9 @@ from pathlib import Path
 
 def detect_acroform_fields(file_path):
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError:
-        print("WARNING: PyPDF2 not installed. Skipping AcroForm detection.")
+        print("WARNING: pypdf not installed. Skipping AcroForm detection.")
         return []
 
     fields = []
@@ -195,7 +195,8 @@ def main():
     acro_fields = detect_acroform_fields(str(form_path))
     print(f"  AcroForm fields: {len(acro_fields)}")
 
-    visual_fields = detect_visual_fields(str(form_path))
+    # JEV Tier 0: an AcroForm already defines every fillable field, so skip visual parsing.
+    visual_fields = [] if acro_fields else detect_visual_fields(str(form_path))
     print(f"  Visual fields: {len(visual_fields)}")
 
     all_fields = merge_fields(acro_fields, visual_fields)

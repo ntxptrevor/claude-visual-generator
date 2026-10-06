@@ -73,7 +73,8 @@ human approval through a guided page-by-page scrolling GUI with highlighted fiel
 The KB lives in a Google Sheet shared across the organization — no Supabase, no env vars,
 no server setup. Admins and project teams edit it directly at any time from any device.
 
-**Sheet ID**: Created on first run, stored in Model Council KB as `formflow_sheet_id`
+**Sheet ID**: `1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug` (FormFlow KB — tabs KB, Sessions,
+Learning, Workflows). Also stored in Model Council KB as `formflow_sheet_id`.
 
 ### Tab: `KB` (Knowledge Base)
 
@@ -153,7 +154,7 @@ produce a correct result.
 [JEV Decision: Field Extraction]
     │
     ├── AcroForm fields present?
-    │   YES → deterministic extraction, $0 (PyPDF2 only)
+    │   YES → deterministic extraction, $0 (pypdf only)
     │   NO  → visual extraction needed
     │         ├── Simple key:value layout
     │         │   → Tier 0: regex + pdfplumber, $0
@@ -195,7 +196,7 @@ produce a correct result.
 | Task | Without JEV | With JEV | Savings |
 |------|-------------|----------|---------|
 | Form type classification | Sonnet $0.015 | Regex $0 | 100% |
-| AcroForm field extraction | API call $0.01 | PyPDF2 $0 | 100% |
+| AcroForm field extraction | API call $0.01 | pypdf $0 | 100% |
 | Simple KV text parsing | Sonnet $0.015 | DeepSeek $0.001 | 93% |
 | KB field matching | API call $0.01 | Local fuzzy $0 | 100% |
 | Confidence scoring | Sonnet $0.015 | 3-model council $0.006 | 60% |
@@ -346,6 +347,96 @@ The user scrolls through at their own pace — no action needed for approved fie
 
 ---
 
+## Signatures (Owner-Only, Always Tier 3)
+
+FormFlow can stamp a signature block (name, title, date) onto a filled form, but only
+under these rules, enforced in `scripts/formflow_signatures.py` and `route_signature()`
+in `scripts/formflow_jev_router.py`:
+
+- **Authorized signers**: **Trevor Hopkins (Owner)** and **Alison Hopkins (Owner)**. Nobody
+  else. Any other name is denied outright, and no gate is offered.
+- **Always Tier 3**: every signature application is explain-and-wait. Confidence, form
+  type, prior approvals and batch "Approve All" never skip this step.
+- **Approval happens inside Claude before the document leaves NTXP.** The filled, unsigned
+  PDF is generated first; the signature is applied only after explicit approval; only
+  then is the document saved to its external-facing location or sent.
+- **One approval, one document.** Approval covers the exact document, signer and fields
+  shown. If any field changes after approval, approval is void and must be re-obtained.
+- **Never delegated.** Subagents and Council seats never receive signature requests or
+  apply signatures; only the coordinating session does.
+- **Audited.** Every request, approval, rejection and application is logged to the
+  `Learning` tab (`event_type: signature_requested | signature_applied | signature_rejected`).
+
+### Signature Step (Phase 3, Step 3-6b)
+
+```
+[Step 3-6b. Signature (only if form type needs one)]
+    │
+    +── formflow_signatures.check_form_needs_signature(form_type)
+    +── detect_signature_fields(form_fields)
+    +── Ask which owner signs (Trevor or Alison). Never assume.
+    +── generate_approval_request(...) → show summary verbatim, HARD STOP
+    │     Options: Approve / Reject / Edit fields first
+    +── On Approve: build_signature_data(signer) → refill PDF → audit row
+    +── On Reject: log rejection, keep unsigned draft in staging
+```
+
+Form types that need a signature: W-9, W-4, I-9, NDA, lien waiver, bid form, credit
+application, vendor registration, SAM registration, subcontractor prequalification and
+insurance certificate forms. The registry marks them `needs_signature: true`.
+
+---
+
+## Parallel Subagents (Single-Writer Model)
+
+FormFlow fans out independent work to parallel subagents sized to the task, so large
+jobs (Drive scans, multi-form packages, learning-loop analysis) finish fast. Plans come
+from `scripts/formflow_orchestrator.py`.
+
+### Agent Profiles
+
+| Profile | Intelligence | Used For | Writes? |
+|---|---|---|---|
+| **scout** | Low (Haiku, Explore) | List Drive files, classify filenames, locate blank forms | No |
+| **extractor** | Low (Haiku) | Read one document, regex/AcroForm extraction | No |
+| **matcher** | Medium (Sonnet) | Map form fields to KB, ambiguous labels, complex layouts | No |
+| **reviewer** | High (Opus) | Contradictions, client-facing review, reclassification | No |
+| **council** | Multi-provider | 3-provider vote on **non-confidential** classification only | No |
+| **coordinator** | Main session | Merge, gate, write, sign | **Yes (only writer)** |
+
+JEV picks the profile: deterministic work stays at Tier 0 in-process; only work
+that actually needs a model is handed to a subagent, at the cheapest profile that works.
+
+### Corruption Safeguards
+
+1. **Workers are read-only.** Every worker prompt carries the worker contract: no tool
+   that writes, appends, moves, shares or deletes. Workers return a JSON **change set**.
+2. **Single writer.** The coordinator merges change sets
+   (`merge_change_sets`) and performs every KB/Drive write serially, one batch per tab.
+3. **No silent overwrites.** Two workers proposing different values for one field, or a
+   proposal that contradicts the live KB, becomes a Tier 3 conflict, not a write.
+4. **Revision check.** Each change set records the KB revision it read; if revisions
+   differ, the coordinator re-reads the KB and re-validates before applying.
+5. **Never parallel:** KB writes, Drive saves/moves, signature application, gate approvals.
+6. **Confidentiality.** W-9/W-4/I-9/credit/bid content never goes to Council seats;
+   Ledger (DeepSeek) and Mason (GLM) never see it.
+7. **Concurrency cap.** At most 6 workers at once; larger jobs run in waves.
+
+### Standard Fan-Out Plans
+
+| Job | Stage 1 | Stage 2 |
+|---|---|---|
+| `drive_scan` | scouts (25 files each) list + classify | extractors (5 files each) propose KB rows |
+| `batch_fill` | extractor per form detects fields | matcher per form proposes values |
+| `learning_loop` | extractor computes stats | reviewer analyzes flagged fields |
+
+```bash
+python scripts/formflow_orchestrator.py --plan drive_scan --items 40
+python scripts/formflow_orchestrator.py --merge w1.json w2.json --kb-json kb.json
+```
+
+---
+
 ## Drive KB Prefill (Phase 0 Bootstrap)
 
 On first run, FormFlow scans NTXP's Google Drive to seed the KB from completed documents.
@@ -452,7 +543,7 @@ The self-learning loop consults the Model Council for:
     │
     +── Step 0-2. Python Environment
     │   +── Verify Python 3.8+
-    │   +── pip install pdfplumber openpyxl python-docx PyPDF2 reportlab
+    │   +── pip install pdfplumber openpyxl python-docx pypdf reportlab
     │
     +── Step 0-3. JEV Wire-In
     │   +── Call council_env (register this surface)
@@ -488,7 +579,7 @@ The self-learning loop consults the Model Council for:
     │
     +── Step 2-2. JEV-routed parsing
     │   +── JEV scores document complexity:
-    │   │   - Has AcroForm? → PyPDF2 only, $0
+    │   │   - Has AcroForm? → pypdf only, $0
     │   │   - Simple text KV? → regex + pdfplumber, $0
     │   │   - Complex layout? → Tier 1 model, ~$0.002
     │   │   - Scanned/handwritten? → Tier 2 model with OCR, ~$0.01
@@ -529,8 +620,12 @@ The self-learning loop consults the Model Council for:
     │   +── python scripts/formflow_sanity_check.py
     │   +── Present issues in GUI for resolution
     │
-    +── Step 3-6. Generate filled PDF
+    +── Step 3-6. Generate filled PDF (unsigned draft)
     │   +── python scripts/formflow_fill_pdf.py
+    │
+    +── Step 3-6b. Signature (see Signatures section; always Tier 3)
+    │
+    +── Step 3-7. Save
     │   +── Save to JEV-determined Drive location
     │   +── Change-gate: Tier 2 for routine saves, Tier 3 for client-facing
 
@@ -602,7 +697,9 @@ claude-visual-generator/
 │   ├── formflow_drive_scanner.py                       ← Drive KB prefill scanner
 │   ├── formflow_learning_loop.py                       ← Self-learning engine
 │   ├── formflow_jev_router.py                          ← JEV decision tree implementation
-│   └── formflow_workflow_registry.py                   ← Prewired workflow field maps
+│   ├── formflow_workflow_registry.py                   ← Prewired workflow field maps
+│   ├── formflow_signatures.py                          ← Owner-only signatures, Tier 3 gate
+│   └── formflow_orchestrator.py                        ← Parallel subagent plans + merge
 ```
 
 ---
@@ -613,7 +710,7 @@ claude-visual-generator/
 |-----------|-----------------|-----------|-------|
 | Form type classification (known) | Regex (Tier 0) | $0 | <1ms |
 | Form type classification (unknown) | DeepSeek/Haiku (Tier 1) | $0.001 | ~1s |
-| AcroForm field extraction | PyPDF2 (Tier 0) | $0 | <1s |
+| AcroForm field extraction | pypdf (Tier 0) | $0 | <1s |
 | Visual field extraction (simple) | Regex + pdfplumber (Tier 0) | $0 | ~2s |
 | Visual field extraction (complex) | Haiku/Gemini Flash (Tier 1) | $0.002 | ~3s |
 | KB fuzzy matching | Local difflib (Tier 0) | $0 | <1s |

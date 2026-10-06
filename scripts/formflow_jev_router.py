@@ -6,7 +6,7 @@ Implements JEV's routing logic for FormFlow tasks. Routes every subtask
 to the cheapest executor that produces a correct result.
 
 JEV Tiers:
-  - Tier 0: Deterministic (regex, PyPDF2, local fuzzy) — $0
+  - Tier 0: Deterministic (regex, pypdf, local fuzzy) — $0
   - Tier 1: Cheap model (DeepSeek, Haiku, Gemini Flash) — ~$0.001
   - Tier 2: Full model (Sonnet/Opus) or Council vote — ~$0.01
 
@@ -150,7 +150,7 @@ def route_classification(filename, content_snippet=None):
 def route_extraction(has_acroform=False, layout_complexity="simple"):
     """JEV Decision: Field Extraction.
 
-    AcroForm present → PyPDF2 only, $0.
+    AcroForm present → pypdf only, $0.
     Simple text KV → regex + pdfplumber, $0.
     Complex tables → Tier 1, ~$0.002.
     Scanned/handwritten → Tier 2, ~$0.01.
@@ -322,6 +322,45 @@ def route_report_generation():
     }
 
 
+def route_signature(signer_name=None):
+    """JEV Decision: Signature application is ALWAYS Tier 3. No exceptions.
+
+    Only Trevor Hopkins (owner) and Alison Hopkins (owner) are authorized.
+    Manual approval within Claude is required before the document goes external.
+    """
+    authorized = {
+        "trevor_hopkins": "Trevor Hopkins",
+        "alison_hopkins": "Alison Hopkins",
+    }
+
+    if signer_name:
+        key = signer_name.lower().strip().replace(" ", "_")
+        if key not in authorized:
+            return {
+                "task": "signature",
+                "tier": None,
+                "executor": "denied",
+                "cost": 0,
+                "method": "unauthorized_signer",
+                "gate_tier": None,
+                "authorized": False,
+                "detail": f"DENIED: '{signer_name}' is not authorized. "
+                          f"Only {', '.join(authorized.values())} may sign."
+            }
+
+    return {
+        "task": "signature",
+        "tier": 3,
+        "executor": "change_gate",
+        "cost": COST_TABLE["tier_0_regex"],
+        "method": "formflow_signatures.py",
+        "gate_tier": 3,
+        "gate_action": "explain_and_wait",
+        "authorized": True,
+        "detail": "Signature requires Tier 3 manual approval. Always."
+    }
+
+
 def route_learning_action(action_type, correction_count=0):
     """JEV Decision: Learning loop action routing."""
     if action_type == "flag_stale":
@@ -404,7 +443,7 @@ def get_cost_summary():
     """Return a summary of JEV cost tiers for reporting."""
     return {
         "tier_0": {
-            "description": "Deterministic (regex, PyPDF2, pdfplumber, fuzzy match, reportlab)",
+            "description": "Deterministic (regex, pypdf, pdfplumber, fuzzy match, reportlab)",
             "cost": "$0",
             "tasks": [
                 "Form type classification (known types)",
@@ -442,7 +481,7 @@ def get_cost_summary():
 
 def main():
     parser = argparse.ArgumentParser(description="FormFlow JEV Decision Tree Router")
-    parser.add_argument("--task", choices=["classify", "extract", "match", "save"],
+    parser.add_argument("--task", choices=["classify", "extract", "match", "save", "signature"],
                         help="Task to route")
     parser.add_argument("--input", type=str, help="Input (filename for classify)")
     parser.add_argument("--acroform", type=str, default="false", help="Has AcroForm fields")
@@ -488,6 +527,10 @@ def main():
             print("Error: --form-type required for save", file=sys.stderr)
             sys.exit(1)
         result = route_save_location(args.form_type, project_name=args.project)
+        print(json.dumps(result, indent=2))
+
+    elif args.task == "signature":
+        result = route_signature(args.input)
         print(json.dumps(result, indent=2))
 
     else:

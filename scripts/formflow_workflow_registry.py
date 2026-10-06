@@ -33,6 +33,8 @@ import json
 import re
 import sys
 
+from formflow_signatures import SIGNATURE_FORM_TYPES
+
 
 WORKFLOWS = {
     "w9": {
@@ -53,6 +55,33 @@ WORKFLOWS = {
             "Signature": "signer_name",
             "Date": "signature_date"
         },
+        # IRS fw9.pdf (Rev. March 2024) AcroForm IDs; tooltips are absent, so map by ID.
+        "acroform_map": {
+            "f1_01[0]": "business_name",
+            "f1_02[0]": "dba_name",
+            "c1_1[*]": "tax_classification_box",
+            "f1_03[0]": "llc_tax_class_code",
+            "f1_04[0]": "tax_classification_other",
+            "f1_05[0]": "exempt_payee_code",
+            "f1_06[0]": "fatca_code",
+            "f1_07[0]": "street_address",
+            "f1_08[0]": "city_state_zip",
+            "f1_09[0]": "requester_name_address",
+            "f1_10[0]": "account_numbers",
+            "f1_11[0]": "ssn_part1",
+            "f1_12[0]": "ssn_part2",
+            "f1_13[0]": "ssn_part3",
+            "f1_14[0]": "ein_part1",
+            "f1_15[0]": "ein_part2",
+        },
+        "tax_classification_states": {
+            "individual": "/1", "c_corp": "/2", "s_corp": "/3",
+            "partnership": "/4", "trust_estate": "/5", "llc": "/6", "other": "/7",
+        },
+        "signature_placements": [
+            {"page": 1, "kind": "signature", "x": 150, "y": 196, "width": 220},
+            {"page": 1, "kind": "date", "x": 410, "y": 196},
+        ],
         "save_location": "!Company Documents",
         "jev_tier": 0,
         "is_confidential": True
@@ -375,7 +404,8 @@ def list_workflows(category=None):
             "category": wf["category"],
             "field_count": len(wf["field_map"]),
             "save_location": wf["save_location"],
-            "is_confidential": wf.get("is_confidential", False)
+            "is_confidential": wf.get("is_confidential", False),
+            "needs_signature": wf["form_type"] in SIGNATURE_FORM_TYPES
         })
     return results
 
@@ -469,6 +499,7 @@ def main():
                 "save_location": wf["save_location"],
                 "jev_tier": wf["jev_tier"],
                 "is_confidential": wf.get("is_confidential", False),
+                "needs_signature": wf["form_type"] in SIGNATURE_FORM_TYPES,
                 "field_count": len(wf["field_map"])
             }, indent=2))
         else:
@@ -484,6 +515,8 @@ def main():
             print("=" * 60)
             for wf in workflows:
                 conf_marker = " [CONFIDENTIAL]" if wf["is_confidential"] else ""
+                if wf["needs_signature"]:
+                    conf_marker += " [SIGNATURE - TIER 3]"
                 print(f"\n  {wf['form_type']:30s} | {wf['name']}{conf_marker}")
                 print(f"  {'':30s} | Category: {wf['category']}")
                 print(f"  {'':30s} | Fields: {wf['field_count']}")

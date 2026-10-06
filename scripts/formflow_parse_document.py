@@ -101,7 +101,7 @@ def parse_pdf(file_path):
 
     entries = []
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
         reader = PdfReader(file_path)
         if reader.get_fields():
             for field_name, field_obj in reader.get_fields().items():

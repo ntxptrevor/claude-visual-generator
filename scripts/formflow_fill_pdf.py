@@ -18,15 +18,14 @@ from pathlib import Path
 
 def fill_acroform(form_path, answers, output_path):
     try:
-        from PyPDF2 import PdfReader, PdfWriter
-        from PyPDF2.generic import NameObject, TextStringObject
+        from pypdf import PdfReader, PdfWriter
+        from pypdf.generic import NameObject, TextStringObject
     except ImportError:
-        print("ERROR: PyPDF2 not installed. Run: pip install PyPDF2")
+        print("ERROR: pypdf not installed. Run: pip install pypdf")
         sys.exit(1)
 
     reader = PdfReader(form_path)
-    writer = PdfWriter()
-    writer.clone_document_from_reader(reader)
+    writer = PdfWriter(clone_from=reader)
 
     answer_map = {}
     for ans in answers:
@@ -37,14 +36,18 @@ def fill_acroform(form_path, answers, output_path):
     filled_count = 0
     skipped_count = 0
 
-    if writer.get_fields():
+    if reader.get_fields():
+        from pypdf.generic import BooleanObject
         for page in writer.pages:
             annotations = page.get("/Annots")
             if not annotations:
                 continue
-            for annot in annotations:
+            text_values = {}
+            for annot in annotations.get_object():
                 annot_obj = annot.get_object() if hasattr(annot, "get_object") else annot
-                field_name = annot_obj.get("/T")
+                parent = annot_obj.get("/Parent")
+                parent = parent.get_object() if parent is not None else {}
+                field_name = annot_obj.get("/T") or parent.get("/T")
                 if not field_name:
                     continue
                 field_name_str = str(field_name)
@@ -54,14 +57,28 @@ def fill_acroform(form_path, answers, output_path):
                     norm = field_name_str.lower().replace(" ", "_")
                     value = answer_map.get(norm)
 
-                if value is not None and value != "":
-                    annot_obj.update({
-                        NameObject("/V"): TextStringObject(value),
-                        NameObject("/AS"): TextStringObject(value),
-                    })
-                    filled_count += 1
-                else:
+                if value is None or value == "":
                     skipped_count += 1
+                    continue
+
+                field_type = annot_obj.get("/FT") or parent.get("/FT")
+                if field_type == "/Btn":
+                    ap = annot_obj.get("/AP")
+                    normal = ap.get_object().get("/N").get_object() if ap else {}
+                    on_states = [k for k in normal.keys() if k != "/Off"]
+                    if not on_states or str(value).lower() in ("off", "false", "no", "0"):
+                        continue
+                    state = str(value) if str(value) in on_states else on_states[0]
+                    annot_obj[NameObject("/AS")] = NameObject(state)
+                    annot_obj[NameObject("/V")] = NameObject(state)
+                else:
+                    text_values[field_name_str] = str(value)
+                filled_count += 1
+
+            if text_values:
+                writer.update_page_form_field_values(page, text_values)
+
+        writer._root_object["/AcroForm"][NameObject("/NeedAppearances")] = BooleanObject(True)
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -75,9 +92,9 @@ def fill_with_overlay(form_path, answers, output_path):
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.pdfgen import canvas as rl_canvas
-        from PyPDF2 import PdfReader, PdfWriter
+        from pypdf import PdfReader, PdfWriter
     except ImportError:
-        print("ERROR: reportlab and PyPDF2 required. Run: pip install reportlab PyPDF2")
+        print("ERROR: reportlab and pypdf required. Run: pip install reportlab pypdf")
         sys.exit(1)
     import io
 
@@ -158,7 +175,7 @@ def main():
     method = args.method
     if method == "auto":
         try:
-            from PyPDF2 import PdfReader
+            from pypdf import PdfReader
             reader = PdfReader(str(form_path))
             has_acroform = bool(reader.get_fields())
         except Exception:
