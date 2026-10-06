@@ -1,241 +1,581 @@
 ---
 name: form-filler
-description: "FormFlow — Smart document form filler that builds an evolving Knowledge Base from PDF, Excel, and Word documents, then auto-fills PDF forms with intelligent field matching, conflict detection, and branded report output. Works cross-device via cloud DB."
+description: "FormFlow v2 — Autonomous AI form filler with JEV decision routing, Model Council inference, Google Sheets KB, NTXP Drive scanning, prewired workflows (legal, RFP, accounts), self-learning loop, and guided page-by-page approval GUI. Operates without user observation; gates only for approval."
+skills: ntxp-model-router, ntxp-model-council, ntxp-change-gate, ntxp-folder-system
 ---
 
-# FormFlow — Smart Document Form Filler
+# FormFlow v2 — Autonomous Smart Form Filler
 
 ## Overview
 
-FormFlow is an AI-powered document form filling skill with two core components:
+FormFlow is an autonomous AI form-filling system that operates without user observation.
+It builds an evolving Knowledge Base from NTXP's Google Drive, detects and fills PDF
+forms using the cheapest-correct model via JEV routing, and gates only for minimal
+human approval through a guided page-by-page scrolling GUI with highlighted fields.
 
-1. **Knowledge Base (KB)** — Ingests PDF, Excel, and Word documents, parses form field
-   answers, stores them in an editable, evolving knowledge base persisted in Supabase
-   for cross-device access (phone, iPad, laptop).
-
-2. **Form Filler** — Detects form fields in PDF forms, auto-fills answers from the KB
-   using fuzzy matching, flags contradictions, and generates branded completion reports.
-
-Core capabilities:
-- Setup wizard with Q&A cards for initial KB population
-- Document ingestion via MCP file-source hooks (Google Drive, OneDrive, iCloud, local)
-- Intelligent field detection (AcroForm + visual pattern recognition)
-- Fuzzy matching with confidence scoring for KB-to-field mapping
-- Conflict detection and resolution prompts
-- Sanity checks (date, email, phone, ZIP, SSN format validation)
-- Branded PDF/HTML report generation (8.5×11 portrait, centered headers)
-- Cloud persistence via Supabase (cross-device, cross-session)
-
----
-
-## User Input Schema
-
-### Required Input
-
-| Item | Description | Example |
-|------|-------------|---------|
-| Action | Which workflow to run | `setup`, `ingest`, `fill`, `report`, `kb-manage` |
-
-### Optional Input
-
-| Item | Description | Default |
-|------|-------------|---------|
-| Document Path | Path to PDF/Excel/Word file to ingest or fill | User prompted |
-| KB Category Filter | Limit operations to specific KB category | All categories |
-| Output Directory | Where to save filled forms and reports | `formflow_output/` |
-| Supabase URL | Supabase project URL for cloud KB | Environment variable `SUPABASE_URL` |
-| Supabase Key | Supabase anon/service key | Environment variable `SUPABASE_KEY` |
-
----
-
-## KB Categories
-
-| Category | Description | Example Fields |
-|----------|-------------|----------------|
-| `personal` | Personal Information | Name, DOB, SSN, Gender, Nationality |
-| `contact` | Contact Details | Email, Phone, Fax, Website |
-| `address` | Address Information | Street, City, State, ZIP, Country |
-| `employment` | Employment & Work | Employer, Title, Department, Salary |
-| `education` | Education & Training | School, Degree, GPA, Graduation Date |
-| `financial` | Financial Information | Bank, Account, Routing, Income, EIN |
-| `medical` | Medical & Health | Insurance, Policy, Allergies, Doctor |
-| `legal` | Legal & Compliance | License, Permit, Case Number |
-| `business` | Business Information | Company Name, DBA, Registered Agent |
-| `other` | Other / Custom | Any user-defined fields |
-
----
-
-## Workflow
+### Architecture
 
 ```
-[Phase 0: Environment Setup]
-    |
-    +-- Step 0-1. Python Environment
-    |   +-- Verify Python 3.8+ available
-    |   +-- Install required packages:
-    |       pip install pdfplumber openpyxl python-docx PyPDF2 reportlab supabase
-    |
-    +-- Step 0-2. Supabase Connection
-    |   +-- Check for SUPABASE_URL and SUPABASE_KEY environment variables
-    |   +-- If not set, prompt user via Q&A card for credentials
-    |   +-- Test connection and verify formflow_kb table exists
-    |   +-- If table missing, run migration:
-    |       python scripts/formflow_db_setup.py --migrate
-    |
-    +-- Step 0-3. MCP File Source Detection
-        +-- Check available MCP connectors (Google Drive, OneDrive, iCloud, local)
-        +-- List accessible file sources to user
-        +-- Store available sources for document ingestion phase
+                   ┌─────────────────┐
+                   │   JEV (Referee)  │
+                   │  Decision Tree   │
+                   │  Confidence Gate  │
+                   └────────┬────────┘
+                            │ routes
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+  ┌─────▼─────┐     ┌──────▼──────┐     ┌──────▼──────┐
+  │  Tier 0   │     │   Tier 1    │     │   Tier 2    │
+  │ DeepSeek  │     │   Haiku     │     │  Sonnet/    │
+  │ GLM Flash │     │  Gemini FL  │     │   Opus      │
+  │ $0 regex  │     │ Simple KV   │     │ Ambiguous   │
+  └─────┬─────┘     └──────┬──────┘     └──────┬──────┘
+        │                   │                   │
+        └───────────────────┼───────────────────┘
+                            │
+                   ┌────────▼────────┐
+                   │  Google Sheets  │
+                   │   KB Database   │
+                   │  (URL-visible)  │
+                   └────────┬────────┘
+                            │
+              ┌─────────────┼─────────────┐
+              │             │             │
+        ┌─────▼─────┐ ┌────▼────┐ ┌──────▼──────┐
+        │  Auto-Fill │ │ Sanity  │ │  Approval   │
+        │  Engine    │ │ Check   │ │  GUI Gate   │
+        └─────┬─────┘ └────┬────┘ └──────┬──────┘
+              │             │             │
+              └─────────────┼─────────────┘
+                            │
+                   ┌────────▼────────┐
+                   │  Self-Learning  │
+                   │     Loop        │
+                   │  (corrections,  │
+                   │   gap research) │
+                   └─────────────────┘
+```
+
+### Core Capabilities
+- **JEV Decision Tree**: Routes every task to cheapest-correct executor
+- **Model Council Inference**: Council votes on ambiguous classifications
+- **Google Sheets KB**: URL-accessible, admin-editable, cross-device
+- **Autonomous Operation**: Watches Drive folders, auto-detects forms, auto-fills
+- **Prewired Workflows**: Legal forms, RFP responses, new accounts, construction compliance
+- **Guided Approval GUI**: Page-by-page scroll, filled fields highlighted, point-and-click edit
+- **Drive KB Prefill**: Scans NTXP Drive for completed forms to seed KB
+- **Self-Learning Loop**: Monitors corrections, researches gaps, consults Council
+
+---
+
+## Google Sheets KB Database
+
+The KB lives in a Google Sheet shared across the organization — no Supabase, no env vars,
+no server setup. Admins and project teams edit it directly at any time from any device.
+
+**Sheet ID**: Created on first run, stored in Model Council KB as `formflow_sheet_id`
+
+### Tab: `KB` (Knowledge Base)
+
+| Column | Header | Description |
+|--------|--------|-------------|
+| A | `id` | Unique row ID (auto-generated UUID) |
+| B | `category` | personal, contact, address, employment, education, financial, medical, legal, business, construction, other |
+| C | `field_name` | Normalized snake_case field name |
+| D | `field_value` | Current best value |
+| E | `field_type` | text, date, email, phone, zip, ssn, ein, number, currency, checkbox |
+| F | `confidence` | 0-100 score |
+| G | `source` | Origin: wizard, drive_scan, manual, form_fill, ingestion |
+| H | `alternates` | Pipe-delimited alternate values |
+| I | `correction_count` | Times a human corrected this during approval |
+| J | `last_corrected` | Date of last human correction |
+| K | `correction_reason` | Last correction note |
+| L | `created_at` | Row creation date |
+| M | `updated_at` | Last update date |
+
+### Tab: `Sessions` (Fill History)
+
+| Column | Header | Description |
+|--------|--------|-------------|
+| A | `session_id` | UUID |
+| B | `form_name` | Name of the form filled |
+| C | `form_type` | Workflow type: legal, rfp, account, construction, general |
+| D | `fields_total` | Total fields detected |
+| E | `fields_auto` | Fields auto-filled (no correction) |
+| F | `fields_corrected` | Fields human-corrected |
+| G | `confidence_avg` | Average confidence |
+| H | `model_used` | Which model did inference |
+| I | `cost` | Estimated cost of this fill |
+| J | `duration_sec` | Seconds to complete |
+| K | `source_path` | Where the blank form came from |
+| L | `output_path` | Where the filled form was saved |
+| M | `timestamp` | ISO datetime |
+
+### Tab: `Learning` (Self-Learning Log)
+
+| Column | Header | Description |
+|--------|--------|-------------|
+| A | `id` | UUID |
+| B | `event_type` | correction, gap_found, research_done, council_consult, field_reclassified |
+| C | `field_name` | Affected field |
+| D | `detail` | What happened |
+| E | `action_taken` | What the loop did |
+| F | `model_used` | Which model handled it |
+| G | `timestamp` | ISO datetime |
+
+### Tab: `Workflows` (Prewired Form Types)
+
+Pre-populated with known form templates and their field maps. See Prewired Workflows below.
+
+---
+
+## JEV Decision Tree
+
+JEV (the Model Council referee) governs every routing decision. The decision tree
+scores each FormFlow subtask and dispatches to the cheapest executor that will
+produce a correct result.
+
+### Routing Rules (enforced, not advisory)
+
+```
+[JEV Decision: Form Type Classification]
+    │
+    ├── Filename/metadata matches a prewired workflow?
+    │   YES → deterministic route, $0 (regex + lookup table)
+    │   NO  → score ambiguity
+    │         ├── ambiguity=0 (clear title like "W-9", "I-9")
+    │         │   → Tier 0: regex classifier, $0
+    │         ├── ambiguity=1-2 (needs content skim)
+    │         │   → Tier 1: DeepSeek/Haiku, ~$0.001
+    │         └── ambiguity=3 (novel form, unclear purpose)
+    │             → Tier 2: council_route, ~$0.01
+
+[JEV Decision: Field Extraction]
+    │
+    ├── AcroForm fields present?
+    │   YES → deterministic extraction, $0 (PyPDF2 only)
+    │   NO  → visual extraction needed
+    │         ├── Simple key:value layout
+    │         │   → Tier 0: regex + pdfplumber, $0
+    │         ├── Complex tables/nested layout
+    │         │   → Tier 1: Haiku/Gemini Flash, ~$0.002
+    │         └── Handwritten/scanned/ambiguous
+    │             → Tier 2: Sonnet with OCR, ~$0.01
+
+[JEV Decision: KB Matching Confidence]
+    │
+    ├── Exact field_name match in KB?
+    │   YES, confidence ≥ 95 → auto-fill, no gate
+    │   YES, confidence 70-94 → auto-fill, Tier 1 gate (batch approve)
+    │   YES, confidence < 70  → present in GUI, Tier 2 gate
+    │   NO match → manual entry in GUI, save to KB after
+    │
+    ├── Contradicts existing KB value?
+    │   → Tier 3 gate: explain + wait (change-gate protocol)
+    │
+    └── Cross-field consistency failure?
+        → Tier 2 gate: notify-then-act with flag
+
+[JEV Decision: Where to Save Filled Form]
+    │
+    ├── Form type matches NTXP folder system?
+    │   legal/compliance → project folder 13.3 (HUB/MBE Forms)
+    │   insurance cert   → project folder 2.7 (Insurance & Bonds)
+    │   lien waiver      → project folder 2.8 (Lien Waivers)
+    │   submittal form   → project folder 5.x
+    │   RFP response     → !Active Bids/[project]
+    │   account/vendor   → !Company Documents/Registrations
+    │   general          → user-specified or prompted
+    │
+    └── No match → ask user, save answer as workflow for next time
+```
+
+### JEV Cost Savings Matrix
+
+| Task | Without JEV | With JEV | Savings |
+|------|-------------|----------|---------|
+| Form type classification | Sonnet $0.015 | Regex $0 | 100% |
+| AcroForm field extraction | API call $0.01 | PyPDF2 $0 | 100% |
+| Simple KV text parsing | Sonnet $0.015 | DeepSeek $0.001 | 93% |
+| KB field matching | API call $0.01 | Local fuzzy $0 | 100% |
+| Confidence scoring | Sonnet $0.015 | 3-model council $0.006 | 60% |
+| File destination routing | User prompt (time) | Folder system lookup $0 | N/A (speed) |
+
+---
+
+## Prewired Workflows
+
+Each workflow has pre-mapped field-to-KB bindings, known form layouts, and
+deterministic save locations. JEV routes these at Tier 0 (regex match on filename
+or form title) — zero inference cost.
+
+### Legal & Compliance Forms
+
+| Form | Fields Auto-Mapped | Save Location |
+|------|-------------------|---------------|
+| W-9 (Tax ID) | business_name, ein, address, ssn, tax_classification | !Company Documents |
+| W-4 (Withholding) | full_name, ssn, address, filing_status | Employee folder |
+| I-9 (Employment) | full_name, dob, ssn, citizenship, address | Employee folder |
+| NDA | company_name, signer_name, signer_title, date | Project 2.1 |
+| Insurance Certificate | company_name, policy_number, agent, limits | Project 2.7 |
+| Lien Waiver | company_name, project_name, amount, date | Project 2.8 |
+| HUB/MBE Certification | company_name, cert_type, cert_number, expiry | Project 13.1 |
+
+### RFP & Bid Responses
+
+| Form | Fields Auto-Mapped | Save Location |
+|------|-------------------|---------------|
+| SAM Registration | company_name, duns, cage, ein, naics, address | !Company Documents |
+| Capability Statement | company_name, services, past_performance, certs | !Active Bids |
+| Vendor Registration | company_name, ein, contact, insurance, bonding | !Company Documents |
+| Bid Form | project_name, bid_amount, addenda_ack, bond_info | Project 4.1 |
+| Subcontractor Prequalification | company_name, bonding_capacity, experience | Project 4.3 |
+
+### New Account & Admin
+
+| Form | Fields Auto-Mapped | Save Location |
+|------|-------------------|---------------|
+| Bank Account Application | company_name, ein, authorized_signers, address | !Company Documents |
+| Credit Application | company_name, duns, trade_references, financials | !Company Documents |
+| Business License | company_name, address, license_type, jurisdiction | !Company Documents |
+| Software/Platform Signup | company_name, admin_email, admin_name, phone | !Company Documents |
+
+### Construction Project
+
+| Form | Fields Auto-Mapped | Save Location |
+|------|-------------------|---------------|
+| Daily Report | project_name, date, weather, manpower, activities | Project 10.2 |
+| Safety Checklist | project_name, date, inspector, items | Project 11.x |
+| Punch List Item | project_name, location, description, responsible | Project 10.1 |
+| Inspection Request | project_name, type, date_requested, scope | Project 11.x |
+
+---
+
+## Autonomous Operation
+
+FormFlow operates without user observation. It is designed to:
+
+### Smart Form Discovery
+1. **Watch folders**: Monitor Drive locations where blank forms typically arrive:
+   - `!Active Bids/` — new RFP packages
+   - `!Active Projects/*/9 - Received by Client/` — owner-issued forms
+   - `!Company Documents/Inbox/` — admin forms
+2. **Auto-detect**: When a new PDF appears, classify it (JEV Tier 0-1)
+3. **Auto-fill**: Match fields against KB, fill at highest possible confidence
+4. **Auto-save**: Route filled form to correct NTXP folder location
+
+### Smart File Destination
+The skill uses `ntxp-folder-system` to determine where filled forms go:
+- Maps form type → NTXP folder number (see Prewired Workflows above)
+- Falls back to content-based classification if form type is unknown
+- Logs the decision for future routing (self-learning)
+
+### Minimal Human Approval Gating
+
+Approval uses the `ntxp-change-gate` three-tier system mapped to confidence:
+
+| Confidence | Gate Tier | User Experience |
+|------------|-----------|-----------------|
+| ≥ 95% | Tier 1 (batch) | Auto-filled. Grouped for one-click batch approve |
+| 70-94% | Tier 2 (notify) | Highlighted yellow in GUI. Auto-proceeds unless objected |
+| < 70% | GUI prompt | Highlighted red. Requires point-and-click entry |
+| Contradiction | Tier 3 (explain+wait) | Side-by-side comparison. Hard stop until resolved |
+
+---
+
+## Guided Approval GUI (Artifact)
+
+The approval artifact presents a **page-by-page scrolling view** of the filled form.
+The user scrolls through at their own pace — no action needed for approved fields.
+
+### Visual Design
+
+```
+┌─────────────────────────────────────────────────────────┐
+│           FormFlow — W-9 Tax Information                │
+│           Page 1 of 2  ·  87% Auto-Filled              │
+│     ████████████████████████░░░░  Progress: 13/15       │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─ FIELD 1 ──────────────────────────── ✓ AUTO ──────┐ │
+│  │  Name (as shown on tax return)                      │ │
+│  │  ┌──────────────────────────────────────────────┐   │ │
+│  │  │ NTXP LLC                              [Edit] │   │ │
+│  │  └──────────────────────────────────────────────┘   │ │
+│  │  KB Match: business_name (99%) · Source: wizard     │ │
+│  └─────────────────────────── background: #e6ffed ────┘ │
+│                                                         │
+│  ┌─ FIELD 2 ──────────────────────────── ⚠ REVIEW ───┐ │
+│  │  Business name / disregarded entity name            │ │
+│  │  ┌──────────────────────────────────────────────┐   │ │
+│  │  │ NTXP Professional LLC             ✏️ [Edit]  │   │ │
+│  │  └──────────────────────────────────────────────┘   │ │
+│  │  KB Match: dba_name (78%) · Source: drive_scan      │ │
+│  │  ⚠ Alternate: "NTXP LLC" (wizard, 99%)             │ │
+│  └─────────────────────────── background: #fffce6 ────┘ │
+│                                                         │
+│  ┌─ FIELD 3 ──────────────────────────── ✗ MANUAL ───┐ │
+│  │  Federal tax classification                         │ │
+│  │  ┌──────────────────────────────────────────────┐   │ │
+│  │  │ [Select: C Corp / S Corp / LLC / ...]        │   │ │
+│  │  └──────────────────────────────────────────────┘   │ │
+│  │  No KB match · Click to enter                       │ │
+│  └─────────────────────────── background: #ffe6e6 ────┘ │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│  [← Prev Page]  [Approve All on Page ✓]  [Next Page →] │
+│                  [Approve Entire Form]                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Field Highlighting Colors
+
+| State | Background | Badge | Meaning |
+|-------|-----------|-------|---------|
+| Auto-filled (≥95%) | `#e6ffed` (green tint) | ✓ AUTO | No action needed |
+| Review (70-94%) | `#fffce6` (yellow tint) | ⚠ REVIEW | Click to confirm or edit |
+| Manual (<70%) | `#ffe6e6` (red tint) | ✗ MANUAL | Must enter value |
+| Contradiction | `#f0e6ff` (purple tint) | ⚡ CONFLICT | Must resolve |
+
+### Point-and-Click Editing
+- Click any field value → inline edit mode
+- Click [Edit] button → expanded editor with KB alternates shown
+- Dropdown fields show KB-suggested options first
+- After editing, value saved to KB with `source: form_fill`
+- Correction increments `correction_count` for self-learning
+
+---
+
+## Drive KB Prefill (Phase 0 Bootstrap)
+
+On first run, FormFlow scans NTXP's Google Drive to seed the KB from completed documents.
+
+### Scan Locations (NTXP Folder System)
+
+| Drive Location | Document Types | Expected Fields |
+|---|---|---|
+| `!Company Documents/` | Registrations, licenses, insurance certs | company_name, ein, address, phone, email |
+| `!Active Projects/*/2.1` | Contracts, NTP letters | company_name, project contacts, addresses |
+| `!Active Projects/*/2.7` | Insurance certificates | policy_numbers, agent, limits, expiry |
+| `!Active Projects/*/13.x` | HUB/MBE certifications | cert_type, cert_number, ethnicity, expiry |
+| `!Active Bids/` | RFP responses, bid forms | company_name, DUNS, CAGE, NAICS, capabilities |
+
+### Scan Strategy (JEV-Optimized)
+
+1. **List files** via `mcp__Google_Drive__search_files` — no inference cost
+2. **Filter by type**: PDF, DOCX, XLSX only — regex on filename, $0
+3. **Classify**: JEV routes each file name through Tier 0 regex first
+4. **Parse cheapest-first**: Only invoke model inference on files regex can't parse
+5. **Deduplicate**: Fuzzy-match extracted values against KB before inserting
+6. **Log**: Every scan result goes to the Learning tab
+
+Expected first-scan yield: 50-200 KB entries from a typical NTXP Drive.
+
+---
+
+## Self-Learning Loop
+
+A background process that continuously improves KB accuracy and coverage.
+
+### Triggers
+
+| Trigger | Action | JEV Tier |
+|---------|--------|----------|
+| `correction_count > 3` on a field | Flag field for review, research correct value | Tier 1 |
+| `correction_count > 5` on a field | Council consult for field reclassification | council_run |
+| Form type has < 60% auto-fill rate | Research that form type, add missing fields | Tier 1-2 |
+| New form type encountered | Add to Workflows tab, map common fields | council_route |
+| KB field unused for 90+ days | Flag as potentially stale, suggest verification | Tier 0 |
+| KB contradiction detected (2+ sources disagree) | Council vote on correct value | council_run |
+
+### Learning Actions
+
+```
+[Self-Learning Loop]
+    │
+    ├── Monitor
+    │   +── Read Sessions tab: which fields get corrected most?
+    │   +── Read Learning tab: what gaps have been found?
+    │   +── Check correction_count across KB
+    │
+    ├── Research (JEV routes to cheapest model)
+    │   +── For high-correction fields:
+    │   │   - Check if field_type is wrong (e.g., "date" parsed as "text")
+    │   │   - Check if field_name normalization is off
+    │   │   - Check if alternates list needs updating
+    │   +── For low-coverage form types:
+    │   │   - Scan Drive for more examples of that form type
+    │   │   - Extract additional field patterns
+    │   │   - Add to Workflows tab prewired mappings
+    │   +── For stale fields:
+    │       - Check if source document has been updated
+    │       - Flag for human verification
+    │
+    ├── Correct (requires approval per change-gate)
+    │   +── Reclassify field_type → Tier 1 gate
+    │   +── Update field_value from research → Tier 2 gate
+    │   +── Add new prewired workflow → Tier 2 gate
+    │   +── Delete/merge duplicate KB entries → Tier 3 gate
+    │
+    └── Report
+        +── Post findings to Council KB (council_kb_post)
+        +── Update Learning tab
+        +── Generate weekly learning digest (branded report)
+```
+
+### Model Council Integration
+
+The self-learning loop consults the Model Council for:
+
+1. **Field reclassification**: "Is 'Tax Classification' a dropdown, text, or checkbox?"
+   → `council_run` with `category: classification`, 3+ model vote
+2. **Value disambiguation**: "Company registered as 'NTXP LLC' in W-9 but 'NTXP Professional LLC' in SAM — which is canonical?"
+   → `council_run` with `category: methodology`, gates for Trevor's approval
+3. **Workflow expansion**: "We've seen 5 similar forms from DISD. Should we add a 'DISD Vendor' prewired workflow?"
+   → `council_route` to cheapest model for pattern analysis, gate for approval
+
+---
+
+## Workflow Phases
+
+```
+[Phase 0: Bootstrap & Environment]
+    │
+    +── Step 0-1. Google Sheets KB
+    │   +── Check for existing FormFlow KB sheet (council_kb_search "formflow_sheet_id")
+    │   +── If not found: create via mcp__Google_Drive__create_file
+    │   │   - Create tabs: KB, Sessions, Learning, Workflows
+    │   │   - Write headers to each tab
+    │   │   - Share with NTXP team (read/write)
+    │   │   - Store sheet ID in Council KB
+    │   +── If found: verify tab structure, add missing columns if upgraded
+    │
+    +── Step 0-2. Python Environment
+    │   +── Verify Python 3.8+
+    │   +── pip install pdfplumber openpyxl python-docx PyPDF2 reportlab
+    │
+    +── Step 0-3. JEV Wire-In
+    │   +── Call council_env (register this surface)
+    │   +── council_kb_search "formflow" (reuse existing workflows/fixes)
+    │   +── Load prewired workflow field maps from Workflows tab
+    │
+    +── Step 0-4. Drive KB Prefill (first run only)
+    │   +── Scan NTXP Drive locations (see Drive KB Prefill above)
+    │   +── Parse documents cheapest-first per JEV routing
+    │   +── Populate KB tab with extracted fields
+    │   +── Log scan results to Learning tab
+    │
+    +── Step 0-5. MCP Source Detection
+        +── Detect available: Google Drive, OneDrive, iCloud, local filesystem
+        +── List file sources for user
 
 [Phase 1: KB Setup Wizard]  (Action: setup)
-    |
-    +-- Step 1-1. Welcome & Q&A Cards
-    |   +-- Present interactive setup wizard artifact
-    |   +-- Walk user through standard questions by category:
-    |       - Personal: Full name, DOB, SSN, Gender
-    |       - Contact: Email, Phone, Address
-    |       - Employment: Employer, Title, Start Date
-    |       - Education: School, Degree, Year
-    |       - Financial: Bank, Account (if applicable)
-    |       - Business: Company name, EIN (if applicable)
-    |   +-- Each card shows field name, input type, and validation hint
-    |
-    +-- Step 1-2. Initial KB Population
-    |   +-- Validate all answers (format checks for dates, emails, phones, etc.)
-    |   +-- Categorize entries automatically using field pattern matching
-    |   +-- Save to Supabase formflow_kb table
-    |   +-- Generate summary artifact showing KB contents
-    |
-    +-- Step 1-3. Document Ingestion Prompt
-        +-- Ask user if they want to ingest existing documents
-        +-- If yes, proceed to Phase 2
-        +-- If no, mark setup complete
+    │
+    +── Step 1-1. Present Q&A wizard artifact (see assets/output_template/kb_wizard_template.md)
+    │   +── Pre-populate any fields already in KB from Drive scan
+    │   +── Walk through categories: Personal → Contact → Address → Employment →
+    │       Education → Business → Construction (NTXP-specific)
+    │
+    +── Step 1-2. Validate and save to Google Sheets KB tab
+    │   +── Format validation via JEV Tier 0 (regex, $0)
+    │   +── Append rows via mcp__Google_Sheets__append_values
+    │
+    +── Step 1-3. Offer document ingestion → Phase 2
 
 [Phase 2: Document Ingestion]  (Action: ingest)
-    |
-    +-- Step 2-1. Document Selection
-    |   +-- Accept document path from user or MCP file browser
-    |   +-- Supported formats: PDF (.pdf), Excel (.xlsx/.xls), Word (.docx)
-    |   +-- Validate file exists and is readable
-    |
-    +-- Step 2-2. Document Parsing
-    |   +-- Run Python parser script:
-    |       python scripts/formflow_parse_document.py \
-    |         --file [document_path] \
-    |         --output-json [temp_output.json]
-    |   +-- Parser extracts key-value pairs using:
-    |       - PDF: pdfplumber for text + AcroForm field extraction
-    |       - Excel: openpyxl for labeled row/column pairs
-    |       - Word: python-docx for table cells and form controls
-    |
-    +-- Step 2-3. KB Merge & Conflict Resolution
-    |   +-- Compare extracted fields against existing KB entries
-    |   +-- For new fields: auto-add to appropriate category
-    |   +-- For conflicting fields: present conflict resolution artifact
-    |       - Show existing value vs. new value
-    |       - Ask user to pick or enter corrected value
-    |       - Option to keep both (mark one as alternate)
-    |   +-- Save merged KB to Supabase
-    |
-    +-- Step 2-4. Ingestion Report
-        +-- Display summary: fields added, updated, conflicts resolved
-        +-- Show updated KB statistics by category
+    │
+    +── Step 2-1. Document selection (user path, Drive browse, or auto-detected)
+    │
+    +── Step 2-2. JEV-routed parsing
+    │   +── JEV scores document complexity:
+    │   │   - Has AcroForm? → PyPDF2 only, $0
+    │   │   - Simple text KV? → regex + pdfplumber, $0
+    │   │   - Complex layout? → Tier 1 model, ~$0.002
+    │   │   - Scanned/handwritten? → Tier 2 model with OCR, ~$0.01
+    │   +── Run: python scripts/formflow_parse_document.py
+    │
+    +── Step 2-3. KB merge with conflict resolution
+    │   +── New fields → auto-add (Tier 1 gate: batch approve)
+    │   +── Conflicts → present resolution artifact (Tier 3 gate)
+    │   +── Write to KB tab via mcp__Google_Sheets__update_values
+    │
+    +── Step 2-4. Log to Sessions tab
 
 [Phase 3: Form Filling]  (Action: fill)
-    |
-    +-- Step 3-1. Form Analysis
-    |   +-- Accept target PDF form path
-    |   +-- Run field detection script:
-    |       python scripts/formflow_detect_fields.py \
-    |         --form [pdf_path] \
-    |         --output-json [fields.json]
-    |   +-- Detection methods:
-    |       - AcroForm field extraction (named fields, types, positions)
-    |       - Visual pattern recognition (label:blank line pairs)
-    |       - Checkbox and radio button detection
-    |
-    +-- Step 3-2. KB Matching
-    |   +-- Load current KB from Supabase
-    |   +-- For each detected field:
-    |       - Fuzzy match field name/label against KB entries
-    |       - Score confidence (0-100): exact=100, fuzzy≥70=auto-fill, <70=prompt
-    |   +-- Present matching preview artifact:
-    |       - Green: high-confidence auto-fills
-    |       - Yellow: medium-confidence (user confirm)
-    |       - Red: no match (manual entry needed)
-    |
-    +-- Step 3-3. Interactive Fill Session
-    |   +-- Present form-filling artifact with:
-    |       - Auto-filled fields pre-populated
-    |       - Inline edit for manual entries
-    |       - Auto-advance after each answer (Enter=accept+next, Tab=skip)
-    |       - Zoom to active field region
-    |       - Progress ring showing completion percentage
-    |   +-- New manual entries saved back to KB automatically
-    |
-    +-- Step 3-4. Sanity Checks
-    |   +-- Run validation per page and per document:
-    |       python scripts/formflow_sanity_check.py \
-    |         --filled [filled_fields.json] \
-    |         --kb [kb_snapshot.json]
-    |   +-- Checks include:
-    |       - Format validation (date, email, phone, ZIP, SSN patterns)
-    |       - Cross-field consistency (e.g., age matches DOB, city matches ZIP)
-    |       - Required field completeness
-    |       - Duplicate/contradictory entries
-    |   +-- Present issues to user for resolution
-    |
-    +-- Step 3-5. Form Output
-        +-- Generate filled PDF:
-            python scripts/formflow_fill_pdf.py \
-              --form [original_pdf] \
-              --answers [filled_fields.json] \
-              --output [output_dir/filled_form.pdf]
-        +-- Save to output directory
-        +-- Offer to user via artifact download link
+    │
+    +── Step 3-1. Form classification (JEV decision tree)
+    │   +── Check prewired workflows first (Tier 0, regex, $0)
+    │   +── Fall back to content-based classification
+    │   +── Determine save location via ntxp-folder-system
+    │
+    +── Step 3-2. Field detection
+    │   +── python scripts/formflow_detect_fields.py
+    │   +── JEV routes: AcroForm=$0, visual=Tier 0-1
+    │
+    +── Step 3-3. KB matching and confidence scoring
+    │   +── Read KB tab via mcp__Google_Sheets__get_values
+    │   +── Fuzzy match field names (local, $0)
+    │   +── For ambiguous matches: council_route to cheapest model
+    │   +── For contradictions: council_run for vote
+    │
+    +── Step 3-4. Present Guided Approval GUI artifact
+    │   +── Page-by-page scrolling view
+    │   +── Fields color-coded by confidence (green/yellow/red/purple)
+    │   +── Point-and-click editing on any field
+    │   +── "Approve Page" and "Approve All" buttons
+    │   +── Corrections saved to KB with correction_count++
+    │
+    +── Step 3-5. Sanity checks
+    │   +── python scripts/formflow_sanity_check.py
+    │   +── Present issues in GUI for resolution
+    │
+    +── Step 3-6. Generate filled PDF
+    │   +── python scripts/formflow_fill_pdf.py
+    │   +── Save to JEV-determined Drive location
+    │   +── Change-gate: Tier 2 for routine saves, Tier 3 for client-facing
 
-[Phase 4: Branded Report Generation]  (Action: report)
-    |
-    +-- Step 4-1. Report Data Assembly
-    |   +-- Gather: KB statistics, fill session results, sanity check outcomes
-    |   +-- Calculate: completion rate, confidence scores, issues resolved
-    |
-    +-- Step 4-2. Report Rendering
-    |   +-- Generate branded PDF report:
-    |       python scripts/formflow_generate_report.py \
-    |         --session-data [session.json] \
-    |         --output [output_dir/FormFlow_Report.pdf]
-    |   +-- Report format (per organization standards):
-    |       - 8.5 × 11 inch portrait orientation
-    |       - Centered headers and titles (full width)
-    |       - Bold text for section labels
-    |       - Bullet points for organized information
-    |       - Infographic section: completion ring, category breakdown chart
-    |       - Color-coded status indicators
-    |       - NTXP LLC branding footer
-    |
-    +-- Step 4-3. Report Delivery
-        +-- Present report as artifact (interactive HTML version)
-        +-- Provide downloadable PDF version
-        +-- Save to Supabase for historical access
+[Phase 4: Branded Report]  (Action: report)
+    │
+    +── Same as before: branded PDF/HTML per organization standards
+    │   (8.5×11 portrait, centered headers, bold labels, infographics)
+    +── Additionally: include JEV cost summary, model usage, learning stats
+    +── Log to Sessions tab
 
 [Phase 5: KB Management]  (Action: kb-manage)
-    |
-    +-- Step 5-1. KB Browser
-    |   +-- Present interactive KB artifact organized by category
-    |   +-- Search, filter, and sort capabilities
-    |
-    +-- Step 5-2. CRUD Operations
-    |   +-- Add new entries manually
-    |   +-- Edit existing entries inline
-    |   +-- Delete entries (with confirmation)
-    |   +-- Merge duplicate entries
-    |
-    +-- Step 5-3. Import/Export
-        +-- Export KB as JSON or CSV
-        +-- Import KB from JSON backup
-        +-- Sync status with Supabase
+    │
+    +── KB tab is directly editable in Google Sheets by admins
+    +── Skill provides: search, filter, merge duplicates, export
+    +── Learning tab visible for monitoring self-learning activity
+
+[Phase 6: Self-Learning Loop]  (Action: learn — or runs automatically)
+    │
+    +── See Self-Learning Loop section above
+    +── Triggered after every fill session, or on schedule
+    +── Posts findings to Model Council KB
 ```
+
+---
+
+## Hooks & Automation
+
+### Session Start Hook
+On session start, if the user's request involves forms, documents, or registrations:
+1. Wire in JEV (council_env)
+2. Load KB sheet
+3. Check for pending learning actions
+
+### Drive Watch Hook
+When configured as a scheduled task:
+1. Poll watched Drive folders for new PDFs
+2. Auto-classify, auto-fill, save draft to staging folder
+3. Notify user via Slack/email with approval GUI link
+
+### Post-Fill Hook
+After every form fill:
+1. Log to Sessions tab
+2. Run self-learning check on corrected fields
+3. Update correction_count in KB
+4. If correction_count crossed threshold → queue learning action
 
 ---
 
@@ -245,73 +585,45 @@ Core capabilities:
 claude-visual-generator/
 ├── skills/
 │   └── form-filler/
-│       ├── SKILL.md                          ← This file
+│       ├── SKILL.md                                    ← This file
 │       └── assets/
 │           └── output_template/
-│               ├── kb_wizard_template.md      ← Artifact template: setup wizard
-│               ├── form_fill_template.md      ← Artifact template: form filler UI
-│               ├── conflict_resolution_template.md  ← Artifact template: conflicts
-│               └── report_template.md         ← Artifact template: branded report
+│               ├── kb_wizard_template.md                ← Setup wizard Q&A
+│               ├── approval_gui_template.md             ← Page-by-page approval GUI
+│               ├── conflict_resolution_template.md      ← Conflict resolution
+│               └── report_template.md                   ← Branded report
 ├── scripts/
-│   ├── formflow_db_setup.py                  ← Supabase migration & DB setup
-│   ├── formflow_parse_document.py            ← Document parser (PDF/Excel/Word)
-│   ├── formflow_detect_fields.py             ← PDF form field detection
-│   ├── formflow_fill_pdf.py                  ← PDF form filling & output
-│   ├── formflow_sanity_check.py              ← Validation & sanity checks
-│   └── formflow_generate_report.py           ← Branded report generator
+│   ├── formflow_sheets_db.py                           ← Google Sheets KB operations
+│   ├── formflow_parse_document.py                      ← Document parser (PDF/Excel/Word)
+│   ├── formflow_detect_fields.py                       ← PDF form field detection
+│   ├── formflow_fill_pdf.py                            ← PDF form filling & output
+│   ├── formflow_sanity_check.py                        ← Validation & sanity checks
+│   ├── formflow_generate_report.py                     ← Branded report generator
+│   ├── formflow_drive_scanner.py                       ← Drive KB prefill scanner
+│   ├── formflow_learning_loop.py                       ← Self-learning engine
+│   ├── formflow_jev_router.py                          ← JEV decision tree implementation
+│   └── formflow_workflow_registry.py                   ← Prewired workflow field maps
 ```
 
 ---
 
-## MCP Integration Hooks
+## Model Usage Summary
 
-FormFlow leverages MCP connectors for document access across platforms:
+| Operation | Model (JEV Tier) | Est. Cost | Speed |
+|-----------|-----------------|-----------|-------|
+| Form type classification (known) | Regex (Tier 0) | $0 | <1ms |
+| Form type classification (unknown) | DeepSeek/Haiku (Tier 1) | $0.001 | ~1s |
+| AcroForm field extraction | PyPDF2 (Tier 0) | $0 | <1s |
+| Visual field extraction (simple) | Regex + pdfplumber (Tier 0) | $0 | ~2s |
+| Visual field extraction (complex) | Haiku/Gemini Flash (Tier 1) | $0.002 | ~3s |
+| KB fuzzy matching | Local difflib (Tier 0) | $0 | <1s |
+| Ambiguous match resolution | Council 3-vote (Tier 2) | $0.006 | ~5s |
+| Sanity check | Python script (Tier 0) | $0 | <1s |
+| Report generation | reportlab (Tier 0) | $0 | ~2s |
+| Self-learning research | DeepSeek (Tier 1) | $0.001 | ~3s |
+| Field reclassification | Council run (Tier 2) | $0.01 | ~10s |
 
-| Source | MCP Server | Usage |
-|--------|-----------|-------|
-| Google Drive | `google-drive` | Browse and fetch documents from Google Drive |
-| OneDrive | `onedrive` | Access Microsoft OneDrive files |
-| iCloud | `icloud` | Pull documents from Apple iCloud Drive |
-| Local Files | `filesystem` | Access local filesystem documents |
-| Supabase | `supabase` | Cloud KB storage and retrieval |
-
-The skill checks for available MCP connectors at Phase 0 and presents
-accessible file sources during document ingestion.
-
----
-
-## Supabase Schema
-
-The KB uses two tables in Supabase for cloud persistence:
-
-### Table: `formflow_kb`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | uuid (PK) | Unique entry identifier |
-| `user_email` | text | Owner email for multi-user isolation |
-| `category` | text | KB category (personal, contact, etc.) |
-| `field_name` | text | Normalized field name |
-| `field_value` | text | Current value |
-| `field_type` | text | Data type hint (text, date, email, phone, etc.) |
-| `confidence` | integer | Confidence score 0-100 |
-| `source` | text | Origin document or manual entry |
-| `alternates` | jsonb | Array of alternate values with sources |
-| `created_at` | timestamptz | Creation timestamp |
-| `updated_at` | timestamptz | Last update timestamp |
-
-### Table: `formflow_sessions`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | uuid (PK) | Session identifier |
-| `user_email` | text | Owner email |
-| `form_name` | text | Name of filled form |
-| `fields_total` | integer | Total fields detected |
-| `fields_filled` | integer | Fields successfully filled |
-| `confidence_avg` | real | Average confidence score |
-| `issues` | jsonb | Array of sanity check issues |
-| `created_at` | timestamptz | Session timestamp |
+**Typical full form fill**: 15 fields × mostly Tier 0 = **~$0.003 total**, ~15 seconds
 
 ---
 
@@ -321,5 +633,5 @@ All reports and artifacts follow organization standards:
 - **Page size**: 8.5 × 11 inch portrait orientation
 - **Headers**: Centered, full-width, bold
 - **Body**: Bold labels, bullet points for organized information
-- **Infographics**: Completion rings, category breakdowns, status indicators
-- **Branding**: Professional design with consistent color scheme
+- **Infographics**: Completion rings, category breakdowns, cost/speed meters
+- **Branding**: NTXP LLC footer, professional color scheme

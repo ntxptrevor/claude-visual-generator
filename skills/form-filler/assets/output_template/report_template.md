@@ -66,12 +66,25 @@ This report follows organization formatting standards for professional output.
 - Source shows "KB", "Manual", or document name
 - Maximum 40 rows per page
 
-### 6. KB Statistics Section
+### 6. JEV Cost & Model Usage Summary
+- **Total Cost**: $X.XXX for this fill session
+- **Models Used**: List of models invoked with call count
+- **JEV Routing Breakdown** (horizontal bar chart):
+  - Tier 0 (regex/local): XX tasks — $0
+  - Tier 1 (cheap model): XX tasks — $X.XXX
+  - Tier 2 (full model/council): XX tasks — $X.XXX
+- **Cost Savings**: "JEV saved $X.XX vs. sending all tasks to Sonnet"
+
+### 7. KB Statistics Section
 - Total entries by category (bulleted list with counts)
 - Recently added entries (last 10)
 - Data source breakdown pie chart
+- **Learning Loop Status**:
+  - Fields flagged for review: X
+  - Auto-fill rate trend (last 5 sessions)
+  - High-correction fields (correction_count ≥ 3)
 
-### 7. Footer (Centered, Every Section)
+### 8. Footer (Centered, Every Section)
 - "FormFlow Report • Generated [date] • NTXP LLC"
 - Page indicator
 
