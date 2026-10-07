@@ -195,14 +195,25 @@ def merge_change_sets(change_sets, kb_entries=None):
     for the same field become a conflict for the Tier 3 gate instead of a
     silent overwrite. Values that contradict the live KB are also conflicts.
     """
-    kb = {e["field_name"].lower(): e for e in (kb_entries or [])}
+    kb, retired = {}, set()
+    for e in kb_entries or []:
+        name = e["field_name"].lower()
+        if name.startswith("retired:"):
+            retired.add((name[len("retired:"):], e.get("field_value", "").strip().lower()))
+        else:
+            kb[name] = e
     by_field = {}
     revisions = set()
+    retired_hits = []
 
     for cs in change_sets:
         revisions.add(cs.get("kb_revision"))
         for p in cs.get("proposals", []):
             p = dict(p, _source=cs.get("source"), _worker=cs.get("worker_id"))
+            if (_key(p), str(p["field_value"]).strip().lower()) in retired:
+                retired_hits.append({"field_name": _key(p), "value": p["field_value"],
+                                     "source": p["_source"]})
+                continue
             by_field.setdefault(_key(p), []).append(p)
 
     writes, conflicts, skipped = [], [], []
@@ -232,6 +243,7 @@ def merge_change_sets(change_sets, kb_entries=None):
         "writes": writes,
         "conflicts": conflicts,
         "skipped": skipped,
+        "retired_rejected": retired_hits,
         "stale_revision": len(revisions - {None}) > 1,
         "write_digest": hashlib.sha256(
             json.dumps(writes, sort_keys=True).encode()).hexdigest()[:16],
