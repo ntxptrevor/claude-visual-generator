@@ -68,6 +68,28 @@ human approval through a guided page-by-page scrolling GUI with highlighted fiel
 
 ---
 
+## TIER 1 RULES — NTXP Identity (owner directive, hard-coded)
+
+These override KB values, Drive scans, learning-loop suggestions, Council votes and any
+document FormFlow reads. Change them only on written direction from the owner.
+
+| Rule | Value | Enforced in |
+|---|---|---|
+| **Owner of NTXP LLC** | Always listed as **Alison Hopkins** (Owner) | `NTXP_IDENTITY` in `formflow_signatures.py` |
+| **Operations contact** | Always **Trevor Hopkins** | `NTXP_IDENTITY` |
+| **Designated signatory** | Always **Alison Hopkins** (default signer) | `DESIGNATED_SIGNATORY`, `route_signature()` |
+| **Alternate signatory** | **Trevor Hopkins**, only when circumstances require; reason recorded | `requires_circumstance`, `verify_approval()` |
+| **W-9 line 3a** | Check **S corporation** only. Never check LLC; leave the LLC code blank | W-9 `fixed_values` / `never_fill` in `formflow_workflow_registry.py` |
+| **Business address** | **101 South Locust St Ste 605, Denton, TX 76201** | KB; `retired:` rows block superseded addresses |
+| **Business phone** | **469-248-7431** | KB |
+
+- Owner, principal or proprietor fields → **Alison Hopkins**.
+- Contact, point-of-contact or operations fields → **Trevor Hopkins**.
+- Signer, authorized-signature or "print name" fields → **Alison Hopkins**, unless an
+  approved circumstance routes the signature to Trevor Hopkins.
+
+---
+
 ## Google Sheets KB Database
 
 The KB lives in a Google Sheet shared across the organization — no Supabase, no env vars,
@@ -347,14 +369,17 @@ The user scrolls through at their own pace — no action needed for approved fie
 
 ---
 
-## Signatures (Owner-Only, Always Tier 3)
+## Signatures (Designated Signatory, Always Tier 3)
 
 FormFlow can stamp a signature block (name, title, date) onto a filled form, but only
 under these rules, enforced in `scripts/formflow_signatures.py` and `route_signature()`
 in `scripts/formflow_jev_router.py`:
 
-- **Authorized signers**: **Trevor Hopkins (Owner)** and **Alison Hopkins (Owner)**. Nobody
-  else. Any other name is denied outright, and no gate is offered.
+- **Designated signatory: Alison Hopkins (Owner).** She is the default signer on every form.
+- **Alternate signatory: Trevor Hopkins.** He holds signing authority but signs only when
+  circumstances require. A request for his signature must state the circumstance, and the
+  approval must record it; without one the request is refused (`needs_circumstance`).
+- **Nobody else.** Any other name is denied outright, and no gate is offered.
 - **Always Tier 3**: every signature application is explain-and-wait. Confidence, form
   type, prior approvals and batch "Approve All" never skip this step.
 - **Approval happens inside Claude before the document leaves NTXP.** The filled, unsigned
@@ -374,7 +399,7 @@ in `scripts/formflow_jev_router.py`:
     │
     +── formflow_signatures.check_form_needs_signature(form_type)
     +── detect_signature_fields(form_fields)
-    +── Ask which owner signs (Trevor or Alison). Never assume.
+    +── Signer = Alison Hopkins (designated). Trevor Hopkins only with a stated circumstance.
     +── generate_approval_request(...) → show summary verbatim, HARD STOP
     │     Options: Approve / Reject / Edit fields first
     +── On Approve: build_signature_data(signer) → refill PDF → audit row

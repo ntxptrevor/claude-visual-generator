@@ -78,6 +78,10 @@ WORKFLOWS = {
             "individual": "/1", "c_corp": "/2", "s_corp": "/3",
             "partnership": "/4", "trust_estate": "/5", "llc": "/6", "other": "/7",
         },
+        # TIER 1 RULE (owner directive 2026-10-07): NTXP checks the S corporation box
+        # only. Never check the LLC box (c1_1[5]) and leave the LLC code (f1_03) blank.
+        "fixed_values": {"c1_1[2]": "/3"},
+        "never_fill": ["c1_1[5]", "f1_03[0]"],
         "signature_placements": [
             {"page": 1, "kind": "signature", "x": 150, "y": 196, "width": 220},
             {"page": 1, "kind": "date", "x": 410, "y": 196},

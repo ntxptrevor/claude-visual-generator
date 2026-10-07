@@ -3,21 +3,19 @@
 FormFlow Signature Appending System
 
 Manages digital signature placement on filled PDF forms.
-SECURITY: Only Trevor Hopkins (owner) and Alison Hopkins (owner) signatures
-are authorized. Every signature application requires Tier 3 manual approval
-within Claude before the document goes external.
-
-Usage (as library):
-    from formflow_signatures import SignatureManager
-    mgr = SignatureManager()
-    mgr.validate_signer("Trevor Hopkins")
-    mgr.generate_approval_request(document_path, signer, fields)
-    mgr.apply_signature(document_path, signer, approval_token)
+SECURITY: Alison Hopkins (Owner) is the designated signatory and default
+signer. Trevor Hopkins holds signing authority but signs only when a stated
+circumstance requires it. Nobody else may sign. Every signature application
+requires Tier 3 manual approval within Claude before the document goes external.
 
 Usage (CLI):
-    python formflow_signatures.py --check "Trevor Hopkins"
+    python formflow_signatures.py --check "Alison Hopkins"
     python formflow_signatures.py --list-signers
-    python formflow_signatures.py --preview --document filled.pdf --signer "Trevor Hopkins"
+    python formflow_signatures.py --request --document filled.pdf --placements p.json
+    python formflow_signatures.py --request --document filled.pdf --signer "Trevor Hopkins" \
+        --circumstance "Alison unavailable before bid deadline" --placements p.json
+    python formflow_signatures.py --apply --document filled.pdf --output signed.pdf \
+        --placements p.json --approval approval.json
 """
 
 import argparse
@@ -30,27 +28,48 @@ from datetime import datetime
 from pathlib import Path
 
 
+# TIER 1 RULE (owner directive, 2026-10-07) — do not change without written owner direction:
+#   Owner of NTXP LLC is always listed as Alison Hopkins.
+#   Operations contact is always Trevor Hopkins.
+#   Designated signatory is always Alison Hopkins.
+#   Trevor Hopkins holds signing authority but uses it only when circumstances require.
+NTXP_IDENTITY = {
+    "company_name": "NTXP LLC",
+    "owner_name": "Alison Hopkins",
+    "owner_title": "Owner",
+    "operations_contact_name": "Trevor Hopkins",
+    "designated_signatory": "Alison Hopkins",
+    "alternate_signatory": "Trevor Hopkins",
+    "w9_tax_classification": "s_corp",
+}
+
+DESIGNATED_SIGNATORY = "alison_hopkins"
+
 AUTHORIZED_SIGNERS = {
-    "trevor_hopkins": {
-        "full_name": "Trevor Hopkins",
+    "alison_hopkins": {
+        "full_name": "Alison Hopkins",
         "title": "Owner",
-        "role": "owner",
-        "email": "trevor@ntxpllc.com",
+        "role": "designated_signatory",
+        "requires_circumstance": False,
+        "email": "",
         "signature_fields": ["signature", "authorized_signature", "owner_signature",
                              "signer", "sign_here", "principal_signature"],
         "initials_fields": ["initials", "initial_here", "owner_initials"],
     },
-    "alison_hopkins": {
-        "full_name": "Alison Hopkins",
-        "title": "Owner",
-        "role": "owner",
-        "email": "",
-        "signature_fields": ["signature", "authorized_signature", "owner_signature",
-                             "signer", "sign_here", "principal_signature",
-                             "co_owner_signature", "secondary_signature"],
-        "initials_fields": ["initials", "initial_here", "owner_initials"],
+    "trevor_hopkins": {
+        "full_name": "Trevor Hopkins",
+        "title": "Authorized Signatory",
+        "role": "alternate_signatory",
+        "requires_circumstance": True,
+        "email": "trevor@ntxpllc.com",
+        "signature_fields": ["signature", "authorized_signature", "signer", "sign_here"],
+        "initials_fields": ["initials", "initial_here"],
     },
 }
+
+
+def default_signer():
+    return AUTHORIZED_SIGNERS[DESIGNATED_SIGNATORY]["full_name"]
 
 GATE_TIER = 3
 
@@ -159,13 +178,16 @@ def document_digest(path):
 
 def generate_approval_request(document_name, form_type, signer_name,
                               signature_fields, save_location=None,
-                              document_path=None):
+                              document_path=None, circumstance=None):
     """Generate a Tier 3 approval request for signature application.
 
     This ALWAYS requires manual approval within Claude. No exceptions.
     The approval request includes full context for the reviewer. When
     document_path is given, the request is bound to that file's SHA-256.
+    signer_name defaults to the designated signatory (Alison Hopkins). The
+    alternate signatory (Trevor Hopkins) requires a stated circumstance.
     """
+    signer_name = signer_name or default_signer()
     validation = validate_signer(signer_name)
     if not validation["authorized"]:
         return {
@@ -175,6 +197,14 @@ def generate_approval_request(document_name, form_type, signer_name,
         }
 
     signer = validation["signer"]
+    if signer["requires_circumstance"] and not (circumstance or "").strip():
+        return {
+            "status": "needs_circumstance",
+            "error": (f"{default_signer()} is NTXP's designated signatory. "
+                      f"{signer['full_name']} signs only when circumstances require; "
+                      f"state the circumstance or use {default_signer()}."),
+            "approval_request": None,
+        }
     request_id = f"sig-{uuid.uuid4().hex[:8]}"
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -193,6 +223,7 @@ def generate_approval_request(document_name, form_type, signer_name,
             "name": signer["full_name"],
             "title": signer["title"],
             "role": signer["role"],
+            "circumstance": circumstance,
         },
         "signature_placements": [
             {
@@ -207,7 +238,8 @@ def generate_approval_request(document_name, form_type, signer_name,
             f"Document: {document_name}\n"
             f"Form Type: {form_type}\n"
             f"Signer: {signer['full_name']} ({signer['title']})\n"
-            f"Fields to sign: {len(signature_fields)}\n"
+            + (f"Circumstance (alternate signatory): {circumstance}\n" if circumstance else "")
+            + f"Fields to sign: {len(signature_fields)}\n"
             f"Save to: {save_location or 'TBD'}\n\n"
             f"This document will be stamped with {signer['full_name']}'s "
             f"signature and may be sent externally. This action is "
@@ -305,6 +337,10 @@ def verify_approval(approval, document_path, signer_name):
         raise SignatureNotApproved("No explicit approval recorded. Tier 3 gate is still closed.")
     if approval.get("signer") != validation["signer"]["full_name"]:
         raise SignatureNotApproved("Approval was granted for a different signer.")
+    if validation["signer"]["requires_circumstance"] and not (approval.get("circumstance") or "").strip():
+        raise SignatureNotApproved(
+            f"{validation['signer']['full_name']} is the alternate signatory; the approval must "
+            f"record the circumstance requiring it. Designated signatory: {default_signer()}.")
     if not approval.get("request_id") or not approval.get("approved_by"):
         raise SignatureNotApproved("Approval record is missing request_id or approved_by.")
     if approval.get("document_sha256") != document_digest(document_path):
@@ -378,6 +414,7 @@ def get_signature_workflow_config():
     return {
         "gate_tier": GATE_TIER,
         "gate_action": "explain_and_wait",
+        "ntxp_identity": NTXP_IDENTITY,
         "authorized_signers": {
             k: {"name": v["full_name"], "title": v["title"], "role": v["role"]}
             for k, v in AUTHORIZED_SIGNERS.items()
@@ -385,7 +422,9 @@ def get_signature_workflow_config():
         "form_types_requiring_signature": sorted(SIGNATURE_FORM_TYPES),
         "rules": [
             "Signatures ALWAYS require Tier 3 manual approval — no exceptions.",
-            "Only Trevor Hopkins (owner) and Alison Hopkins (owner) may sign.",
+            "Alison Hopkins (Owner) is the designated signatory and default signer.",
+            "Trevor Hopkins signs only when circumstances require; the circumstance is recorded.",
+            "No one other than Alison Hopkins or Trevor Hopkins may sign.",
             "Approval must occur within Claude before document goes external.",
             "Every signature application generates an audit record.",
             "Rejected signature requests are logged but no signature is applied.",
@@ -427,7 +466,10 @@ def main():
     parser.add_argument("--preview", action="store_true",
                         help="Preview signature approval request")
     parser.add_argument("--document", type=str, help="Document name for preview")
-    parser.add_argument("--signer", type=str, help="Signer name for preview")
+    parser.add_argument("--signer", type=str, default=None,
+                        help="Signer (defaults to designated signatory Alison Hopkins)")
+    parser.add_argument("--circumstance", type=str, default=None,
+                        help="Required when the alternate signatory (Trevor Hopkins) signs")
     parser.add_argument("--form-type", type=str, default="general",
                         help="Form type for preview")
     parser.add_argument("--config", action="store_true",
@@ -448,14 +490,14 @@ def main():
                   for p in placements]
         result = generate_approval_request(
             Path(args.document).name, args.form_type, args.signer, fields,
-            document_path=args.document)
+            document_path=args.document, circumstance=args.circumstance)
         print(json.dumps(result, indent=2))
         sys.exit(0 if result["status"] == "pending_approval" else 2)
 
     if args.apply:
         try:
             record = apply_signature(
-                args.document, args.output, args.signer,
+                args.document, args.output, args.signer or default_signer(),
                 json.loads(Path(args.placements).read_text()),
                 json.loads(Path(args.approval).read_text()) if args.approval else None,
                 signature_image=args.signature_image)
@@ -481,8 +523,8 @@ def main():
         print("All signatures require Tier 3 manual approval. No exceptions.")
 
     elif args.preview:
-        if not args.document or not args.signer:
-            print("Error: --document and --signer required for preview", file=sys.stderr)
+        if not args.document:
+            print("Error: --document required for preview", file=sys.stderr)
             sys.exit(1)
 
         sample_fields = [
@@ -491,7 +533,8 @@ def main():
         ]
         result = generate_approval_request(
             args.document, args.form_type, args.signer,
-            sample_fields, save_location="!Company Documents"
+            sample_fields, save_location="!Company Documents",
+            circumstance=args.circumstance
         )
         print(json.dumps(result, indent=2))
 

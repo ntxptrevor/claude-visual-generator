@@ -322,31 +322,43 @@ def route_report_generation():
     }
 
 
-def route_signature(signer_name=None):
+def route_signature(signer_name=None, circumstance=None):
     """JEV Decision: Signature application is ALWAYS Tier 3. No exceptions.
 
-    Only Trevor Hopkins (owner) and Alison Hopkins (owner) are authorized.
-    Manual approval within Claude is required before the document goes external.
+    Defaults to the designated signatory (Alison Hopkins). Trevor Hopkins is
+    routed only with a stated circumstance. Anyone else is denied.
     """
-    authorized = {
-        "trevor_hopkins": "Trevor Hopkins",
-        "alison_hopkins": "Alison Hopkins",
-    }
+    from formflow_signatures import default_signer, validate_signer
 
-    if signer_name:
-        key = signer_name.lower().strip().replace(" ", "_")
-        if key not in authorized:
-            return {
-                "task": "signature",
-                "tier": None,
-                "executor": "denied",
-                "cost": 0,
-                "method": "unauthorized_signer",
-                "gate_tier": None,
-                "authorized": False,
-                "detail": f"DENIED: '{signer_name}' is not authorized. "
-                          f"Only {', '.join(authorized.values())} may sign."
-            }
+    signer_name = signer_name or default_signer()
+    validation = validate_signer(signer_name)
+    if not validation["authorized"]:
+        return {
+            "task": "signature",
+            "tier": None,
+            "executor": "denied",
+            "cost": 0,
+            "method": "unauthorized_signer",
+            "gate_tier": None,
+            "authorized": False,
+            "detail": validation["message"],
+        }
+
+    signer = validation["signer"]
+    if signer["requires_circumstance"] and not (circumstance or "").strip():
+        return {
+            "task": "signature",
+            "tier": 3,
+            "executor": "needs_circumstance",
+            "cost": 0,
+            "method": "alternate_signatory_without_reason",
+            "gate_tier": 3,
+            "authorized": True,
+            "signer": signer["full_name"],
+            "detail": f"{default_signer()} is the designated signatory. "
+                      f"{signer['full_name']} signs only when circumstances require; "
+                      f"state the circumstance or route to {default_signer()}.",
+        }
 
     return {
         "task": "signature",
@@ -357,6 +369,7 @@ def route_signature(signer_name=None):
         "gate_tier": 3,
         "gate_action": "explain_and_wait",
         "authorized": True,
+        "signer": signer["full_name"],
         "detail": "Signature requires Tier 3 manual approval. Always."
     }
 
