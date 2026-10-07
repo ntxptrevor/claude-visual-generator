@@ -9,3 +9,10 @@ Thumbs.db
 *.jpeg
 figures/
 slide_image_gen/
+
+# Google service-account keys / API keys — never commit (repo is public)
+*sa-key*.json
+*service-account*.json
+ntxp-workspace-sa.json
+*maps-api-key*
+.config/ntxp/

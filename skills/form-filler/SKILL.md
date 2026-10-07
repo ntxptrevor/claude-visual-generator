@@ -90,6 +90,22 @@ document FormFlow reads. Change them only on written direction from the owner.
 
 ---
 
+## Google Workspace Access
+
+Use `scripts/google_workspace/ntxp_google_access.py` for all Google data
+(Gmail, Drive, Calendar, Sheets, Docs, Slides, Forms, Contacts, Tasks, Admin
+Directory/Reports, Maps). Credentials come only from `NTXP_GOOGLE_*` environment
+variables, never from files in the repo. Setup: `scripts/google_workspace/README.md`.
+- `service(name, user=..., allow_write=False)`; read-only unless `allow_write=True`.
+- Impersonate only @ntxpllc.com users; default is `NTXP_GOOGLE_ADMIN_SUBJECT`.
+- Every write passes the NTXP change gate. Sends, deletes, sharing, permission
+  changes and bulk actions are Tier 3: explain and wait for approval.
+- Connected MCP tools (Google Drive/Sheets/Gmail/Calendar) remain the first choice
+  in chat sessions; this module covers headless runs and org-wide (admin) reads.
+- Google Voice has no API; do not attempt it.
+
+---
+
 ## Google Sheets KB Database
 
 The KB lives in a Google Sheet shared across the organization — no Supabase, no env vars,
