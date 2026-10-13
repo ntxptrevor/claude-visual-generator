@@ -2,27 +2,43 @@
 # Traefik proxy from the n8n template (network n8n_default, cert resolver mytlschallenge).
 # Hostinger project name: ntxp-admin. Inline this file as the project content.
 #
+# The VPS Docker Manager cannot build images, so the app runs on the stock Python image:
+# at start it fetches this repo at a pinned commit (NTXP_ADMIN_GIT_SHA) and installs its
+# dependencies. Update = change NTXP_ADMIN_GIT_SHA and restart the project.
+#
 # Only oauth2-proxy joins n8n_default. The app sits on a private network so no other
 # container can reach it or forge the X-Forwarded-Email header it trusts.
 #
-# Project environment: OAUTH2_PROXY_CLIENT_ID, OAUTH2_PROXY_CLIENT_SECRET,
-# OAUTH2_PROXY_COOKIE_SECRET, NTXP_ADMIN_DEMO, and the NTXP_* / provider keys from
-# .env.example as they become available.
+# Project environment: NTXP_ADMIN_GIT_SHA, OAUTH2_PROXY_CLIENT_ID, OAUTH2_PROXY_CLIENT_SECRET,
+# OAUTH2_PROXY_COOKIE_SECRET, NTXP_ADMIN_DEMO, plus NTXP_* / provider keys from .env.example.
 
 services:
   app:
-    # The VPS Docker Manager cannot build images (see the Hostinger run journal).
-    # Build admin_console/deploy/Dockerfile elsewhere, with dependencies installed
-    # from pre-downloaded wheels, push it to a registry the VPS can pull, and set
-    # NTXP_ADMIN_IMAGE in the project environment.
-    image: ${NTXP_ADMIN_IMAGE:?set NTXP_ADMIN_IMAGE to the prebuilt admin console image}
-    pull_policy: missing
+    image: python:3.11-slim
     container_name: ntxp-admin-app
     restart: unless-stopped
     env_file: [.env]
     environment:
       TZ: "America/Chicago"
       NTXP_ADMIN_DB_PATH: "/data/admin_intelligence.json"
+      PIP_CACHE_DIR: "/data/pip-cache"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONUNBUFFERED: "1"
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - >-
+        set -e;
+        pip install -q fastapi "uvicorn[standard]" python-multipart httpx google-auth google-api-python-client;
+        python -c "import io,os,tarfile,urllib.request;
+        sha=os.environ['NTXP_ADMIN_GIT_SHA'];
+        url='https://codeload.github.com/ntxptrevor/claude-visual-generator/tar.gz/'+sha;
+        t=tarfile.open(fileobj=io.BytesIO(urllib.request.urlopen(url,timeout=120).read()));
+        keep=[m for m in t.getmembers() if '/admin_console/' in m.name or '/scripts/google_workspace/' in m.name];
+        [setattr(m,'name',m.name.split('/',1)[1]) for m in keep];
+        t.extractall('/app',members=keep)";
+        exec uvicorn admin_console.server.app:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allow-ips '*'
     volumes:
       - admin_data:/data
     networks: [private]
