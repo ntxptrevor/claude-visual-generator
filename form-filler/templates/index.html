@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FormFlow — Smart Document Form Filler</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav id="topnav">
+        <div class="nav-brand">
+            <span class="brand-icon">&#9634;</span>
+            <span class="brand-text">FormFlow</span>
+        </div>
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-view="form-filler">
+                <span class="tab-icon">&#9998;</span> Fill Forms
+            </button>
+            <button class="nav-tab" data-view="knowledge-base">
+                <span class="tab-icon">&#9733;</span> Knowledge Base
+                <span class="kb-count" id="kbCountBadge">0</span>
+            </button>
+        </div>
+        <div class="nav-actions">
+            <button id="btnUploadKB" class="btn btn-ghost" title="Upload to Knowledge Base">
+                <span>&#8679;</span> Upload to KB
+            </button>
+        </div>
+    </nav>
+
+    <!-- ================================================================ -->
+    <!-- SETUP WIZARD (shown on first launch when KB is empty)            -->
+    <!-- ================================================================ -->
+    <div id="wizardOverlay" class="overlay hidden">
+        <div class="wizard-container">
+            <div class="wizard-header">
+                <h2>Welcome to FormFlow</h2>
+                <p>Let's set up your Knowledge Base so forms fill themselves.</p>
+                <div class="wizard-progress">
+                    <div class="progress-bar"><div class="progress-fill" id="wizardProgress"></div></div>
+                    <span class="progress-label" id="wizardStepLabel">Step 1 of 5</span>
+                </div>
+            </div>
+
+            <div class="wizard-body" id="wizardBody">
+                <!-- Steps injected by JS -->
+            </div>
+
+            <div class="wizard-footer">
+                <button class="btn btn-ghost" id="wizardSkip">Skip Setup</button>
+                <div class="wizard-nav-btns">
+                    <button class="btn btn-secondary" id="wizardBack" disabled>Back</button>
+                    <button class="btn btn-primary" id="wizardNext">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- FORM FILLER VIEW                                                 -->
+    <!-- ================================================================ -->
+    <div id="view-form-filler" class="view active">
+        <!-- Upload area (when no form loaded) -->
+        <div id="formUploadArea" class="upload-zone">
+            <div class="upload-content">
+                <div class="upload-icon">&#128196;</div>
+                <h3>Drop a PDF form here</h3>
+                <p>or click to browse</p>
+                <input type="file" id="formFileInput" accept=".pdf" hidden>
+                <button class="btn btn-primary" id="btnBrowseForm">Browse Files</button>
+            </div>
+        </div>
+
+        <!-- Form filling workspace (when form is loaded) -->
+        <div id="formWorkspace" class="workspace hidden">
+            <!-- Left: Form preview -->
+            <div class="form-preview" id="formPreview">
+                <div class="form-preview-header">
+                    <span class="form-filename" id="formFilename"></span>
+                    <div class="page-nav">
+                        <button class="btn btn-icon" id="btnPrevPage" title="Previous page">&#9664;</button>
+                        <span id="pageIndicator">1 / 1</span>
+                        <button class="btn btn-icon" id="btnNextPage" title="Next page">&#9654;</button>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" id="btnCheckPage" title="Check this page">&#10003; Check Page</button>
+                </div>
+                <div class="form-page-content" id="formPageContent">
+                    <!-- Rendered form content with field overlays -->
+                </div>
+            </div>
+
+            <!-- Right: Field panel -->
+            <div class="field-panel" id="fieldPanel">
+                <div class="field-panel-header">
+                    <h3>Form Fields</h3>
+                    <div class="field-stats">
+                        <span class="stat stat-filled" id="statFilled">0 filled</span>
+                        <span class="stat stat-empty" id="statEmpty">0 empty</span>
+                        <span class="stat stat-flagged" id="statFlagged">0 flagged</span>
+                    </div>
+                </div>
+
+                <div class="field-list" id="fieldList">
+                    <!-- Field cards injected by JS -->
+                </div>
+
+                <div class="field-panel-footer">
+                    <button class="btn btn-secondary" id="btnCheckAll">
+                        &#10003; Sanity Check All
+                    </button>
+                    <button class="btn btn-primary" id="btnSaveForm">
+                        &#128190; Save & Update KB
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sanity check results panel -->
+        <div id="sanityPanel" class="sanity-panel hidden">
+            <div class="sanity-header">
+                <h3>Sanity Check Results</h3>
+                <button class="btn btn-icon" id="btnCloseSanity">&times;</button>
+            </div>
+            <div class="sanity-body" id="sanityBody">
+                <!-- Results injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- KNOWLEDGE BASE VIEW                                              -->
+    <!-- ================================================================ -->
+    <div id="view-knowledge-base" class="view hidden">
+        <div class="kb-container">
+            <div class="kb-header">
+                <h2>Knowledge Base</h2>
+                <div class="kb-actions">
+                    <button class="btn btn-primary" id="btnUploadKBInline">
+                        <span>&#8679;</span> Upload Document
+                    </button>
+                    <button class="btn btn-secondary" id="btnAddEntry">
+                        + Add Entry
+                    </button>
+                </div>
+            </div>
+
+            <div class="kb-search">
+                <input type="text" id="kbSearch" placeholder="Search knowledge base..." class="input-search">
+            </div>
+
+            <div class="kb-categories" id="kbCategories">
+                <!-- Category sections injected by JS -->
+            </div>
+
+            <!-- Empty state -->
+            <div class="kb-empty hidden" id="kbEmpty">
+                <div class="empty-icon">&#128218;</div>
+                <h3>Knowledge Base is Empty</h3>
+                <p>Run the setup wizard or upload documents to get started.</p>
+                <button class="btn btn-primary" id="btnRunWizard">Run Setup Wizard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- CONFLICT RESOLUTION MODAL                                        -->
+    <!-- ================================================================ -->
+    <div id="conflictModal" class="overlay hidden">
+        <div class="modal">
+            <div class="modal-header warning">
+                <span class="modal-icon">&#9888;</span>
+                <h3>Value Conflict Detected</h3>
+            </div>
+            <div class="modal-body" id="conflictBody">
+                <!-- Conflict details injected by JS -->
+            </div>
+            <div class="modal-footer" id="conflictFooter">
+                <!-- Buttons injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- KB UPLOAD MODAL                                                  -->
+    <!-- ================================================================ -->
+    <div id="kbUploadModal" class="overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Upload to Knowledge Base</h3>
+                <button class="btn btn-icon modal-close" id="btnCloseKBUpload">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-zone-small" id="kbUploadZone">
+                    <p>Drop PDF, Excel, or Word files here</p>
+                    <input type="file" id="kbFileInput" accept=".pdf,.xlsx,.xls,.docx,.doc" hidden>
+                    <button class="btn btn-secondary" id="btnBrowseKB">Browse</button>
+                </div>
+                <div id="kbUploadResult" class="hidden">
+                    <div class="upload-result-header">
+                        <span class="result-icon">&#10003;</span>
+                        <span id="kbUploadCount">0</span> entries extracted
+                    </div>
+                    <div class="upload-result-list" id="kbUploadList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="btnCancelKBUpload">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+name: Deploy FormFlow to Hostinger
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'form-filler/public/**'
+      - 'form-filler/formflow.html'
+      - '.github/workflows/deploy-hostinger.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    name: Deploy to Hostinger via FTP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync formflow.html to public/index.html
+        run: cp form-filler/formflow.html form-filler/public/index.html
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASS }}
+          local-dir: ./form-filler/public/
+          server-dir: ./public_html/
+          dangerous-clean-slate: false

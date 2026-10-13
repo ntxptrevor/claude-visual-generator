@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormFlow — Smart Document Form Filler</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<style>
+/* ================================================================
+   DESIGN SYSTEM
+   ================================================================ */
+:root {
+  --bg: #f4f5f7; --bg-card: #fff; --bg-hover: #ebedf2; --bg-active: #e0e4eb;
+  --text: #111827; --text-2: #4b5563; --text-3: #9ca3af;
+  --pri: #2563eb; --pri-h: #1d4ed8; --pri-l: #dbeafe; --pri-t: #fff;
+  --ok: #059669; --ok-l: #d1fae5; --ok-bg: #ecfdf5;
+  --warn: #d97706; --warn-l: #fef3c7; --warn-bg: #fffbeb;
+  --err: #dc2626; --err-l: #fee2e2; --err-bg: #fef2f2;
+  --bdr: #e5e7eb; --bdr-f: #2563eb;
+  --r: 8px; --r-lg: 14px; --r-sm: 4px;
+  --sh: 0 1px 3px rgba(0,0,0,.08); --sh-lg: 0 12px 40px rgba(0,0,0,.12);
+  --tr: 120ms ease; --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size: 14px; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+/* ================================================================
+   NAV
+   ================================================================ */
+#nav { display:flex; align-items:center; height:50px; padding:0 16px; background:var(--bg-card); border-bottom:1px solid var(--bdr); gap:12px; z-index:100; position:relative; }
+.brand { display:flex; align-items:center; gap:8px; font-weight:800; font-size:15px; letter-spacing:-.3px; }
+.brand svg { width:22px; height:22px; }
+.brand-t { background: linear-gradient(135deg, var(--pri), #7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.tabs { display:flex; gap:2px; margin-left:20px; }
+.tab { padding:6px 14px; border:none; background:none; font-size:12.5px; font-weight:600; color:var(--text-2); cursor:pointer; border-radius:var(--r-sm); transition:var(--tr); display:flex; align-items:center; gap:5px; font-family:var(--font); }
+.tab:hover { background:var(--bg-hover); color:var(--text); }
+.tab.on { background:var(--pri-l); color:var(--pri); }
+.tab .badge { background:var(--pri); color:#fff; font-size:9px; padding:1px 6px; border-radius:10px; font-weight:700; min-width:18px; text-align:center; }
+.nav-r { margin-left:auto; display:flex; gap:6px; }
+
+/* ================================================================
+   BUTTONS & INPUTS
+   ================================================================ */
+.btn { padding:7px 14px; border:1px solid var(--bdr); border-radius:var(--r); font-size:12px; font-weight:600; cursor:pointer; transition:var(--tr); display:inline-flex; align-items:center; gap:5px; background:var(--bg-card); color:var(--text); font-family:var(--font); line-height:1; white-space:nowrap; }
+.btn:hover { background:var(--bg-hover); }
+.btn:active { transform:scale(.97); }
+.btn-p { background:var(--pri); color:var(--pri-t); border-color:var(--pri); }
+.btn-p:hover { background:var(--pri-h); }
+.btn-s { background:#fff; color:var(--pri); border-color:var(--pri); }
+.btn-g { background:transparent; border-color:transparent; color:var(--text-2); }
+.btn-g:hover { background:var(--bg-hover); color:var(--text); }
+.btn-d { color:var(--err); border-color:var(--err-l); }
+.btn-d:hover { background:var(--err-bg); }
+.btn-i { width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:var(--r); background:none; border:1px solid transparent; cursor:pointer; font-size:15px; color:var(--text-2); transition:var(--tr); }
+.btn-i:hover { background:var(--bg-hover); color:var(--text); }
+.btn-sm { padding:4px 9px; font-size:11px; }
+input[type=text], input[type=email], input[type=tel], input[type=date], input[type=number], textarea, select {
+  width:100%; padding:7px 10px; border:1px solid var(--bdr); border-radius:var(--r); font-size:12.5px; font-family:var(--font); color:var(--text); background:#fff; transition:var(--tr); outline:none; }
+input:focus, textarea:focus, select:focus { border-color:var(--bdr-f); box-shadow:0 0 0 3px var(--pri-l); }
+.inp-s { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:10px center; padding-left:30px; }
+
+/* ================================================================
+   LAYOUT
+   ================================================================ */
+.view { display:none; height:calc(100vh - 50px); overflow:hidden; }
+.view.on { display:flex; }
+.hide { display:none !important; }
+
+/* ================================================================
+   OVERLAY / MODAL
+   ================================================================ */
+.ov { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(6px); }
+.modal { background:#fff; border-radius:var(--r-lg); width:520px; max-width:95vw; max-height:85vh; box-shadow:var(--sh-lg); animation:pop .2s ease; display:flex; flex-direction:column; }
+@keyframes pop { from{transform:translateY(16px) scale(.98);opacity:0} to{transform:none;opacity:1} }
+.m-head { padding:20px 22px 10px; display:flex; align-items:center; gap:10px; }
+.m-head.m-warn { color:var(--warn); }
+.m-head h3 { font-size:15px; color:var(--text); flex:1; }
+.m-body { padding:8px 22px 20px; overflow-y:auto; flex:1; }
+.m-foot { padding:14px 22px; border-top:1px solid var(--bdr); display:flex; gap:8px; justify-content:flex-end; }
+
+/* ================================================================
+   WIZARD
+   ================================================================ */
+.wiz { background:#fff; border-radius:var(--r-lg); width:540px; max-width:95vw; max-height:82vh; display:flex; flex-direction:column; box-shadow:var(--sh-lg); animation:pop .2s ease; }
+.wiz-head { padding:22px 22px 14px; border-bottom:1px solid var(--bdr); }
+.wiz-head h2 { font-size:18px; margin-bottom:3px; }
+.wiz-head p { color:var(--text-2); font-size:13px; }
+.wiz-prog { margin-top:14px; display:flex; align-items:center; gap:10px; }
+.prog-bar { flex:1; height:4px; background:var(--bg); border-radius:2px; overflow:hidden; }
+.prog-fill { height:100%; background:linear-gradient(90deg, var(--pri), #7c3aed); border-radius:2px; transition:width .3s ease; }
+.prog-lbl { font-size:11px; color:var(--text-3); flex-shrink:0; font-weight:600; }
+.wiz-body { padding:22px; overflow-y:auto; flex:1; }
+.wiz-step { animation:fadeIn .2s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.wiz-step h3 { font-size:14px; margin-bottom:3px; }
+.wiz-step p { color:var(--text-2); font-size:12.5px; margin-bottom:14px; }
+.wiz-f { margin-bottom:10px; }
+.wiz-f label { display:block; font-size:10.5px; font-weight:700; color:var(--text-3); margin-bottom:3px; text-transform:uppercase; letter-spacing:.6px; }
+.wiz-foot { padding:14px 22px; border-top:1px solid var(--bdr); display:flex; align-items:center; justify-content:space-between; }
+.wiz-nav { display:flex; gap:6px; }
+
+/* ================================================================
+   UPLOAD ZONE
+   ================================================================ */
+.uz { flex:1; display:flex; align-items:center; justify-content:center; padding:32px; }
+.uz-box { text-align:center; padding:52px 48px; border:2px dashed var(--bdr); border-radius:var(--r-lg); max-width:460px; width:100%; transition:var(--tr); cursor:pointer; }
+.uz-box:hover, .uz-box.drag { border-color:var(--pri); background:var(--pri-l); }
+.uz-ico { font-size:44px; margin-bottom:10px; line-height:1; }
+.uz-box h3 { font-size:15px; margin-bottom:3px; }
+.uz-box p { color:var(--text-3); font-size:12px; margin-bottom:14px; }
+.uz-sm { text-align:center; padding:28px; border:2px dashed var(--bdr); border-radius:var(--r); transition:var(--tr); }
+.uz-sm.drag { border-color:var(--pri); background:var(--pri-l); }
+
+/* ================================================================
+   FORM WORKSPACE — SPLIT VIEW
+   ================================================================ */
+.ws { flex:1; display:flex; gap:0; height:calc(100vh - 50px); }
+
+/* LEFT: PDF Preview */
+.fp { flex:1; display:flex; flex-direction:column; border-right:1px solid var(--bdr); min-width:0; background:var(--bg); }
+.fp-bar { padding:8px 14px; display:flex; align-items:center; gap:10px; background:#fff; border-bottom:1px solid var(--bdr); flex-shrink:0; }
+.fp-name { font-size:12px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
+.pnav { display:flex; align-items:center; gap:6px; margin-left:auto; }
+.pnav span { font-size:11px; color:var(--text-2); min-width:40px; text-align:center; font-weight:600; font-variant-numeric:tabular-nums; }
+.fp-canvas-wrap { flex:1; overflow:auto; padding:20px; display:flex; justify-content:center; position:relative; }
+.fp-canvas-inner { position:relative; box-shadow:var(--sh-lg); border-radius:4px; overflow:hidden; background:#fff; }
+.fp-canvas-inner canvas { display:block; }
+
+/* Field annotation overlays on PDF */
+.f-ann { position:absolute; cursor:pointer; transition:all .15s ease; border-radius:3px; display:flex; align-items:center; z-index:10; }
+.f-ann-empty { background:rgba(37,99,235,.08); border:2px dashed rgba(37,99,235,.4); }
+.f-ann-filled { background:rgba(5,150,105,.08); border:2px solid rgba(5,150,105,.4); }
+.f-ann-flag { background:rgba(217,119,6,.1); border:2px solid rgba(217,119,6,.5); }
+.f-ann:hover { transform:scale(1.02); box-shadow:0 0 0 3px var(--pri-l); z-index:20; }
+.f-ann.act { box-shadow:0 0 0 3px rgba(37,99,235,.35); z-index:20; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(37,99,235,.35)} 50%{box-shadow:0 0 0 6px rgba(37,99,235,.15)} }
+.f-ann-label { position:absolute; top:-20px; left:0; font-size:9.5px; font-weight:700; color:var(--pri); background:var(--pri-l); padding:1px 6px; border-radius:3px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s; }
+.f-ann:hover .f-ann-label, .f-ann.act .f-ann-label { opacity:1; }
+.f-ann-val { font-size:11px; padding:2px 6px; color:var(--ok); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+
+/* Completion ring */
+.comp-ring { position:relative; width:36px; height:36px; flex-shrink:0; }
+.comp-ring svg { transform:rotate(-90deg); }
+.comp-ring .ring-bg { fill:none; stroke:var(--bg); stroke-width:3; }
+.comp-ring .ring-fg { fill:none; stroke:var(--ok); stroke-width:3; stroke-linecap:round; transition:stroke-dashoffset .4s ease; }
+.comp-pct { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8.5px; font-weight:800; color:var(--text-2); }
+
+/* RIGHT: Field Panel */
+.fpn { width:370px; display:flex; flex-direction:column; background:#fff; flex-shrink:0; }
+.fpn-head { padding:12px 14px 8px; border-bottom:1px solid var(--bdr); }
+.fpn-head h3 { font-size:13px; margin-bottom:5px; display:flex; align-items:center; gap:8px; }
+.f-stats { display:flex; gap:8px; }
+.st { font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; }
+.st-ok { background:var(--ok-l); color:var(--ok); }
+.st-no { background:var(--bg); color:var(--text-3); }
+.st-fl { background:var(--warn-l); color:var(--warn); }
+.fpn-list { flex:1; overflow-y:auto; padding:6px; scroll-behavior:smooth; }
+
+/* Field card */
+.fc { padding:9px 11px; border:1px solid var(--bdr); border-radius:var(--r); margin-bottom:5px; cursor:pointer; transition:var(--tr); position:relative; }
+.fc:hover { border-color:var(--pri); background:rgba(37,99,235,.02); }
+.fc.act { border-color:var(--pri); box-shadow:0 0 0 3px var(--pri-l); background:rgba(37,99,235,.03); }
+.fc.ok { border-left:3px solid var(--ok); }
+.fc.no { border-left:3px solid var(--bdr); }
+.fc.fl { border-left:3px solid var(--warn); }
+.fc-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; }
+.fc-name { font-size:11.5px; font-weight:700; color:var(--text); }
+.fc-src { font-size:9.5px; padding:1px 5px; border-radius:6px; font-weight:600; }
+.fc-src.kb { background:var(--pri-l); color:var(--pri); }
+.fc-src.man { background:var(--bg); color:var(--text-3); }
+.fc-src.emp { background:var(--warn-l); color:var(--warn); }
+.fc-row { display:flex; gap:5px; align-items:center; }
+.fc-row input { flex:1; padding:5px 7px; font-size:12.5px; }
+.fc-row .btn-i { width:26px; height:26px; font-size:13px; flex-shrink:0; }
+.fc-meta { font-size:9.5px; color:var(--text-3); margin-top:2px; display:flex; gap:8px; }
+.fpn-foot { padding:10px 14px; border-top:1px solid var(--bdr); display:flex; gap:6px; }
+.fpn-foot .btn { flex:1; justify-content:center; }
+
+/* ================================================================
+   SANITY PANEL (bottom slide-up)
+   ================================================================ */
+.san { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:2px solid var(--warn); box-shadow:0 -4px 24px rgba(0,0,0,.08); max-height:280px; z-index:200; display:flex; flex-direction:column; animation:sUp .2s ease; }
+@keyframes sUp { from{transform:translateY(100%)} to{transform:none} }
+.san-h { padding:10px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--bdr); }
+.san-h h3 { font-size:13px; }
+.san-b { padding:10px 16px; overflow-y:auto; flex:1; }
+.san-i { display:flex; align-items:flex-start; gap:9px; padding:7px 0; border-bottom:1px solid var(--bdr); }
+.san-i:last-child { border-bottom:none; }
+.san-ic { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; font-weight:700; }
+.san-ic.err { background:var(--err-l); color:var(--err); }
+.san-ic.warn { background:var(--warn-l); color:var(--warn); }
+.san-ic.info { background:var(--pri-l); color:var(--pri); }
+.san-fn { font-size:11.5px; font-weight:700; }
+.san-msg { font-size:11.5px; color:var(--text-2); }
+.san-ok { text-align:center; padding:18px; color:var(--ok); font-weight:700; font-size:13px; }
+
+/* ================================================================
+   KNOWLEDGE BASE VIEW
+   ================================================================ */
+.kb-wrap { flex:1; padding:20px; overflow-y:auto; max-width:880px; margin:0 auto; width:100%; }
+.kb-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.kb-top h2 { font-size:18px; }
+.kb-acts { display:flex; gap:6px; }
+.kb-srch { margin-bottom:16px; }
+.kb-cat { margin-bottom:20px; }
+.kb-cat-h { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:var(--text-3); padding-bottom:6px; border-bottom:1px solid var(--bdr); margin-bottom:6px; display:flex; align-items:center; gap:7px; }
+.kb-cat-h .cnt { background:var(--bg); padding:1px 6px; border-radius:8px; font-size:9px; }
+.kb-e { display:flex; align-items:center; padding:7px 10px; border-radius:var(--r); transition:var(--tr); gap:10px; }
+.kb-e:hover { background:var(--bg-hover); }
+.kb-ek { font-size:12.5px; font-weight:600; width:190px; flex-shrink:0; }
+.kb-ev { flex:1; font-size:12.5px; color:var(--text-2); }
+.kb-em { font-size:9.5px; color:var(--text-3); flex-shrink:0; }
+.kb-ea { display:flex; gap:2px; opacity:0; transition:var(--tr); }
+.kb-e:hover .kb-ea { opacity:1; }
+.kb-emp { text-align:center; padding:50px 20px; }
+.kb-emp h3 { margin-bottom:6px; font-size:15px; }
+.kb-emp p { color:var(--text-2); margin-bottom:16px; font-size:13px; }
+.kb-emp-ico { font-size:42px; margin-bottom:10px; line-height:1; }
+.kb-ie { display:flex; gap:5px; flex:1; align-items:center; }
+.kb-ie input { padding:4px 7px; font-size:12.5px; }
+
+/* Conflict */
+.cf-vals { display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+.cf-opt { padding:9px 11px; border:2px solid var(--bdr); border-radius:var(--r); cursor:pointer; transition:var(--tr); }
+.cf-opt:hover { border-color:var(--pri); background:var(--pri-l); }
+.cf-opt.sel { border-color:var(--pri); background:var(--pri-l); }
+.cf-lbl { font-size:10px; text-transform:uppercase; color:var(--text-3); font-weight:700; margin-bottom:1px; }
+.cf-val { font-size:13px; font-weight:600; }
+
+/* Upload result */
+.ur-h { display:flex; align-items:center; gap:7px; padding:10px; background:var(--ok-bg); border-radius:var(--r); margin-bottom:10px; font-weight:700; color:var(--ok); font-size:12.5px; }
+.ur-l { max-height:280px; overflow-y:auto; }
+.ur-e { display:flex; padding:5px 0; border-bottom:1px solid var(--bdr); font-size:12px; }
+.ur-e .k { width:170px; font-weight:600; flex-shrink:0; }
+.ur-e .v { color:var(--text-2); }
+
+/* ================================================================
+   TOAST
+   ================================================================ */
+.tc { position:fixed; bottom:16px; right:16px; z-index:2000; display:flex; flex-direction:column; gap:6px; }
+.toast { padding:9px 14px; border-radius:var(--r); background:var(--text); color:#fff; font-size:12px; font-weight:600; box-shadow:var(--sh-lg); animation:tIn .2s ease; max-width:320px; display:flex; align-items:center; gap:7px; }
+.toast.success { background:var(--ok); }
+.toast.warning { background:var(--warn); }
+.toast.error { background:var(--err); }
+@keyframes tIn { from{transform:translateY(8px);opacity:0} to{transform:none;opacity:1} }
+.spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .5s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ================================================================
+   KEYBOARD HINT
+   ================================================================ */
+.kbd-hint { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.7); color:#fff; font-size:11px; padding:5px 12px; border-radius:20px; z-index:150; font-weight:600; pointer-events:none; opacity:0; transition:opacity .3s; }
+.kbd-hint.show { opacity:1; }
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+@media (max-width:768px) {
+  .ws { flex-direction:column; }
+  .fpn { width:100%; height:50vh; }
+  .fp { height:50vh; }
+  .nav-r { display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--pri)"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18"/><path d="M3 9h6"/><path d="M3 15h6"/></svg>
+    <span class="brand-t">FormFlow</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-v="filler"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Fill Forms</button>
+    <button class="tab" data-v="kb"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg> Knowledge Base <span class="badge" id="kbBadge">0</span></button>
+  </div>
+  <div class="nav-r">
+    <button class="btn btn-g" id="navUpKB"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload to KB</button>
+    <button class="btn btn-g" id="navNewForm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> New Form</button>
+  </div>
+</nav>
+
+<!-- WIZARD OVERLAY -->
+<div id="wizOv" class="ov hide">
+  <div class="wiz">
+    <div class="wiz-head">
+      <h2>Welcome to FormFlow</h2>
+      <p>Answer a few questions to seed your Knowledge Base. Forms will auto-fill from here on.</p>
+      <div class="wiz-prog"><div class="prog-bar"><div class="prog-fill" id="wizProg"></div></div><span class="prog-lbl" id="wizLbl">Step 1 of 5</span></div>
+    </div>
+    <div class="wiz-body" id="wizBody"></div>
+    <div class="wiz-foot">
+      <button class="btn btn-g" id="wizSkip">Skip</button>
+      <div class="wiz-nav"><button class="btn" id="wizBack" disabled>Back</button><button class="btn btn-p" id="wizNext">Next</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- FORM FILLER VIEW -->
+<div id="v-filler" class="view on">
+  <div id="fillerUpload" class="uz">
+    <div class="uz-box" id="formDrop">
+      <div class="uz-ico">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--pri)" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <h3>Drop a PDF form here</h3>
+      <p>or click to browse. Your form fields will be detected automatically.</p>
+      <input type="file" id="formFile" accept=".pdf" hidden>
+      <button class="btn btn-p" id="formBrowse">Browse Files</button>
+    </div>
+  </div>
+
+  <div id="fillerWS" class="ws hide">
+    <!-- LEFT: PDF -->
+    <div class="fp">
+      <div class="fp-bar">
+        <span class="fp-name" id="fpName"></span>
+        <div class="pnav">
+          <button class="btn-i" id="pgPrev" title="Previous page (Left arrow)">&#9664;</button>
+          <span id="pgInd">1 / 1</span>
+          <button class="btn-i" id="pgNext" title="Next page (Right arrow)">&#9654;</button>
+        </div>
+        <button class="btn btn-sm btn-g" id="chkPage">&#10003; Check Page</button>
+      </div>
+      <div class="fp-canvas-wrap" id="fpWrap">
+        <div class="fp-canvas-inner" id="fpInner">
+          <canvas id="pdfCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+    <!-- RIGHT: Fields -->
+    <div class="fpn">
+      <div class="fpn-head">
+        <h3>
+          Form Fields
+          <div class="comp-ring" id="compRing"><svg width="36" height="36" viewBox="0 0 36 36"><circle class="ring-bg" cx="18" cy="18" r="15"/><circle class="ring-fg" id="ringFg" cx="18" cy="18" r="15" stroke-dasharray="94.25" stroke-dashoffset="94.25"/></svg><span class="comp-pct" id="compPct">0%</span></div>
+        </h3>
+        <div class="f-stats">
+          <span class="st st-ok" id="stOk">0 filled</span>
+          <span class="st st-no" id="stNo">0 empty</span>
+          <span class="st st-fl" id="stFl">0 flagged</span>
+        </div>
+      </div>
+      <div class="fpn-list" id="fList"></div>
+      <div class="fpn-foot">
+        <button class="btn" id="chkAll">&#10003; Check All</button>
+        <button class="btn btn-p" id="saveForm">Save &amp; Update KB</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sanity panel -->
+  <div id="sanPanel" class="san hide">
+    <div class="san-h"><h3>Sanity Check Results</h3><button class="btn-i" id="sanClose">&times;</button></div>
+    <div class="san-b" id="sanBody"></div>
+  </div>
+</div>
+
+<!-- KB VIEW -->
+<div id="v-kb" class="view">
+  <div class="kb-wrap">
+    <div class="kb-top"><h2>Knowledge Base</h2><div class="kb-acts"><button class="btn btn-p" id="kbUpBtn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Document</button><button class="btn btn-s" id="kbAdd">+ Add Entry</button></div></div>
+    <div class="kb-srch"><input type="text" id="kbSearch" placeholder="Search knowledge base..." class="inp-s"></div>
+    <div id="kbList"></div>
+    <div class="kb-emp hide" id="kbEmp"><div class="kb-emp-ico"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div><h3>Knowledge Base is Empty</h3><p>Run the setup wizard or upload documents to get started.</p><button class="btn btn-p" id="kbWiz">Run Setup Wizard</button></div>
+  </div>
+</div>
+
+<!-- CONFLICT MODAL -->
+<div id="cfModal" class="ov hide">
+  <div class="modal"><div class="m-head m-warn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><h3>Value Conflict</h3></div><div class="m-body" id="cfBody"></div><div class="m-foot" id="cfFoot"></div></div>
+</div>
+
+<!-- KB UPLOAD MODAL -->
+<div id="kbUpModal" class="ov hide">
+  <div class="modal"><div class="m-head"><h3>Upload to Knowledge Base</h3><button class="btn-i" id="kbUpClose">&times;</button></div><div class="m-body"><div class="uz-sm" id="kbUpZone"><p>Drop PDF, Excel, or Word files here</p><input type="file" id="kbUpFile" accept=".pdf,.xlsx,.xls,.docx,.doc" hidden><button class="btn btn-s" id="kbUpBrowse">Browse</button></div><div id="kbUpRes" class="hide"><div class="ur-h" id="kbUpResH"></div><div class="ur-l" id="kbUpResL"></div></div></div><div class="m-foot"><button class="btn btn-g" id="kbUpDone">Close</button></div></div>
+</div>
+
+<!-- Toast container -->
+<div class="tc" id="toasts"></div>
+
+<!-- Keyboard hint -->
+<div class="kbd-hint" id="kbdHint">Press <b>Enter</b> to accept &amp; advance &middot; <b>Tab</b> to skip</div>
+
+<script type="module">
+// ================================================================
+// PDF.js Setup
+// ================================================================
+const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
+// ================================================================
+// State
+// ================================================================
+const S = {
+  view: 'filler',
+  kb: {},           // key -> { key, value, category, source, confidence, updated_at }
+  form: null,       // { filename, pdf, pageCount, fields, pages(text) }
+  pg: 0,
+  aIdx: -1,
+  wizStep: 0,
+  wizData: {},
+};
+
+// ================================================================
+// Helpers
+// ================================================================
+const $ = (s, c) => (c||document).querySelector(s);
+const $$ = (s, c) => [...(c||document).querySelectorAll(s)];
+const esc = s => { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; };
+const escA = s => (s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+function toast(msg, type='') {
+  const t = document.createElement('div');
+  t.className = 'toast '+ type;
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+// ================================================================
+// Local Storage KB
+// ================================================================
+const KB_KEY = 'formflow_kb';
+function loadKB() {
+  try { S.kb = JSON.parse(localStorage.getItem(KB_KEY)) || {}; } catch { S.kb = {}; }
+  $('#kbBadge').textContent = Object.keys(S.kb).length;
+}
+function saveKB() {
+  localStorage.setItem(KB_KEY, JSON.stringify(S.kb));
+  $('#kbBadge').textContent = Object.keys(S.kb).length;
+}
+
+const CATEGORIES = {
+  personal:'Personal Information', contact:'Contact Details', address:'Address Information',
+  employment:'Employment & Work', education:'Education & Training', financial:'Financial Information',
+  medical:'Medical & Health', legal:'Legal & Compliance', business:'Business Information', other:'Other'
+};
+const FIELD_PATTERNS = {
+  personal: [/(?:first|last|middle|full)\s*name/i, /date\s*of\s*birth|dob|birth\s*date/i, /gender|sex/i, /ssn|social\s*security/i, /nationality|citizenship/i, /marital/i],
+  contact: [/e[-]?mail/i, /phone|tel|mobile|cell|fax/i, /website|url/i],
+  address: [/address|street|city|state|zip|postal|country|apt|suite/i],
+  employment: [/employer|company|job\s*title|position|occupation|work/i, /department|supervisor/i, /salary|wage/i],
+  education: [/school|university|college|degree|diploma|gpa|major/i, /graduation|certificate/i],
+  financial: [/bank|account|routing|income|tax|ein|revenue/i],
+  medical: [/medical|health|insurance|policy|allergies|medication/i, /doctor|physician|emergency/i],
+  legal: [/license|permit|registration|court|case\s*number/i],
+  business: [/business\s*name|company\s*name|dba|trade\s*name/i, /incorporation|registered\s*agent|tax\s*id/i],
+};
+
+function categorize(name) {
+  for (const [cat, pats] of Object.entries(FIELD_PATTERNS))
+    for (const p of pats) if (p.test(name)) return cat;
+  return 'other';
+}
+
+function kbSet(key, value, source='manual') {
+  const kl = key.trim().toLowerCase();
+  let conflict = null;
+  if (S.kb[kl] && S.kb[kl].value && S.kb[kl].value !== value) {
+    conflict = { field:key, old_value:S.kb[kl].value, new_value:value, old_source:S.kb[kl].source||'unknown', new_source:source };
+  }
+  S.kb[kl] = { key:key.trim(), value, category:categorize(key), source, confidence:1, updated_at:new Date().toISOString() };
+  saveKB();
+  return conflict;
+}
+
+function kbMatch(fieldName) {
+  const fl = fieldName.trim().toLowerCase();
+  if (S.kb[fl]) return S.kb[fl];
+  const norm = fl.replace(/[^a-z0-9\s]/g,'').trim();
+  for (const [k,e] of Object.entries(S.kb)) {
+    if (k.replace(/[^a-z0-9\s]/g,'').trim() === norm) return e;
+  }
+  let best=null, bestS=0;
+  for (const [k,e] of Object.entries(S.kb)) {
+    const kw = new Set(k.replace(/[^a-z0-9\s]/g,'').split(/\s+/));
+    const fw = new Set(fl.replace(/[^a-z0-9\s]/g,'').split(/\s+/));
+    if (!kw.size||!fw.size) continue;
+    const overlap = [...kw].filter(w=>fw.has(w)).length;
+    const score = overlap / Math.max(kw.size, fw.size);
+    if (score > bestS && score >= .5) { bestS=score; best=e; }
+  }
+  return best;
+}
+
+// ================================================================
+// Navigation
+// ================================================================
+function switchView(v) {
+  S.view = v;
+  $$('.view').forEach(el => el.classList.toggle('on', el.id === 'v-'+v));
+  $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === v));
+  if (v==='kb') renderKB();
+}
+$$('.tab').forEach(t => t.addEventListener('click', ()=>switchView(t.dataset.v)));
+
+// ================================================================
+// Knowledge Base View
+// ================================================================
+function renderKB() {
+  const list = $('#kbList'), empty = $('#kbEmp');
+  const search = ($('#kbSearch').value||'').toLowerCase();
+  const entries = Object.entries(S.kb);
+  if (!entries.length) { list.innerHTML=''; empty.classList.remove('hide'); return; }
+  empty.classList.add('hide');
+
+  const byCat = {};
+  entries.forEach(([k,e])=>{
+    if (search && !e.key.toLowerCase().includes(search) && !(e.value||'').toLowerCase().includes(search)) return;
+    const c = e.category||'other';
+    (byCat[c] = byCat[c]||[]).push({kbKey:k, ...e});
+  });
+
+  let html='';
+  for (const [ck,cl] of Object.entries(CATEGORIES)) {
+    const items = byCat[ck]; if (!items||!items.length) continue;
+    html+=`<div class="kb-cat"><div class="kb-cat-h">${cl} <span class="cnt">${items.length}</span></div>`;
+    for (const e of items) {
+      html+=`<div class="kb-e" data-k="${esc(e.kbKey)}">
+        <div class="kb-ek">${esc(e.key)}</div><div class="kb-ev">${esc(e.value||'—')}</div>
+        <div class="kb-em">${esc(e.source||'')}</div>
+        <div class="kb-ea"><button class="btn-i kb-ed" title="Edit">&#9998;</button><button class="btn-i btn-d kb-del" title="Delete">&times;</button></div>
+      </div>`;
+    }
+    html+='</div>';
+  }
+  list.innerHTML = html;
+
+  $$('.kb-ed', list).forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const row = btn.closest('.kb-e'), k = row.dataset.k, entry = S.kb[k]; if(!entry) return;
+    const vel = row.querySelector('.kb-ev'), orig = vel.innerHTML;
+    vel.innerHTML = `<div class="kb-ie"><input type="text" value="${escA(entry.value)}" class="kbi"><button class="btn btn-sm btn-p kbis">Save</button><button class="btn btn-sm btn-g kbic">Cancel</button></div>`;
+    const inp = vel.querySelector('.kbi'); inp.focus(); inp.select();
+    vel.querySelector('.kbic').addEventListener('click',()=>{vel.innerHTML=orig;});
+    const save = ()=>{ kbSet(entry.key, inp.value.trim(), 'manual_edit'); toast('Updated: '+entry.key,'success'); renderKB(); };
+    vel.querySelector('.kbis').addEventListener('click', save);
+    inp.addEventListener('keydown', ev=>{ if(ev.key==='Enter') save(); if(ev.key==='Escape') vel.innerHTML=orig; });
+  }));
+  $$('.kb-del', list).forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const k = btn.closest('.kb-e').dataset.k;
+    delete S.kb[k]; saveKB(); toast('Deleted'); renderKB();
+  }));
+}
+$('#kbSearch').addEventListener('input', renderKB);
+$('#kbAdd').addEventListener('click', ()=>{
+  const list=$('#kbList');
+  const f = document.createElement('div'); f.className='kb-e'; f.style.background='var(--pri-l)';
+  f.innerHTML=`<input type="text" placeholder="Field name" class="nk" style="width:190px;flex-shrink:0"><input type="text" placeholder="Value" class="nv" style="flex:1"><button class="btn btn-sm btn-p ns">Add</button><button class="btn btn-sm btn-g nc">Cancel</button>`;
+  list.prepend(f); f.querySelector('.nk').focus();
+  f.querySelector('.nc').addEventListener('click',()=>f.remove());
+  const save=()=>{ const k=f.querySelector('.nk').value.trim(); if(!k)return; kbSet(k,f.querySelector('.nv').value.trim(),'manual'); toast('Added: '+k,'success'); f.remove(); renderKB(); };
+  f.querySelector('.ns').addEventListener('click',save);
+  f.querySelectorAll('input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')save();}));
+});
+
+// ================================================================
+// KB Upload Modal
+// ================================================================
+function openKBUp() { $('#kbUpModal').classList.remove('hide'); $('#kbUpRes').classList.add('hide'); }
+function closeKBUp() { $('#kbUpModal').classList.add('hide'); }
+
+async function handleKBUpload(file) {
+  toast('Parsing '+file.name+'...');
+  let entries = {};
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext==='pdf') {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    for (let i=1;i<=pdf.numPages;i++) {
+      const pg = await pdf.getPage(i);
+      const tc = await pg.getTextContent();
+      const lines = []; let cur='';
+      tc.items.forEach(it=>{ if(it.hasEOL){lines.push(cur+it.str);cur='';} else cur+=it.str; });
+      if(cur) lines.push(cur);
+      lines.forEach(ln=>{
+        ln=ln.trim(); if(!ln) return;
+        if(ln.includes(':')) { const p=ln.split(':',2); if(p[0].trim().length<60&&p[1].trim()) entries[p[0].trim()]=p[1].trim(); }
+        else if(ln.includes('\t')) { const p=ln.split('\t',2); if(p.length===2&&p[0].trim()&&p[1].trim()) entries[p[0].trim()]=p[1].trim(); }
+      });
+    }
+  } else if (ext==='xlsx'||ext==='xls') {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf);
+    wb.SheetNames.forEach(sn=>{
+      const ws=wb.Sheets[sn], data=XLSX.utils.sheet_to_json(ws,{header:1});
+      let hdrs=[];
+      data.forEach((row,ri)=>{
+        const cells=row.map(c=>String(c||'').trim());
+        if(ri===0&&cells.some(c=>c)){hdrs=cells;return;}
+        if(cells.length>=2&&cells[0]&&cells[1]&&cells[0].length<60) entries[cells[0]]=cells[1];
+        else if(hdrs.length) cells.forEach((v,i)=>{if(i<hdrs.length&&hdrs[i]&&v)entries[hdrs[i]]=v;});
+      });
+    });
+  } else if (ext==='docx'||ext==='doc') {
+    const buf = await file.arrayBuffer();
+    const res = await mammoth.extractRawText({arrayBuffer:buf});
+    res.value.split('\n').forEach(ln=>{
+      ln=ln.trim(); if(!ln) return;
+      if(ln.includes(':')){const p=ln.split(':',2);if(p[0].trim().length<60&&p[1].trim())entries[p[0].trim()]=p[1].trim();}
+    });
+  }
+
+  let conflicts=[];
+  for (const [k,v] of Object.entries(entries)) {
+    if(v) { const c=kbSet(k,v,'upload:'+file.name); if(c) conflicts.push(c); }
+  }
+  for (const c of conflicts) await resolveConflict(c);
+
+  const ct = Object.keys(entries).length;
+  $('#kbUpResH').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${ct} entries extracted`;
+  let lh=''; for(const[k,v] of Object.entries(entries)) lh+=`<div class="ur-e"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+  $('#kbUpResL').innerHTML=lh;
+  $('#kbUpRes').classList.remove('hide');
+  toast(ct+' entries added to KB','success');
+  renderKB();
+}
+
+$('#navUpKB').addEventListener('click', openKBUp);
+$('#kbUpBtn').addEventListener('click', openKBUp);
+$('#kbUpClose').addEventListener('click', closeKBUp);
+$('#kbUpDone').addEventListener('click', closeKBUp);
+$('#kbUpBrowse').addEventListener('click',()=>$('#kbUpFile').click());
+$('#kbUpFile').addEventListener('change',e=>{if(e.target.files[0])handleKBUpload(e.target.files[0]);});
+const kbUZ=$('#kbUpZone');
+kbUZ.addEventListener('dragover',e=>{e.preventDefault();kbUZ.classList.add('drag');});
+kbUZ.addEventListener('dragleave',()=>kbUZ.classList.remove('drag'));
+kbUZ.addEventListener('drop',e=>{e.preventDefault();kbUZ.classList.remove('drag');if(e.dataTransfer.files[0])handleKBUpload(e.dataTransfer.files[0]);});
+
+// ================================================================
+// Conflict Resolution
+// ================================================================
+function resolveConflict(conflict) {
+  return new Promise(resolve=>{
+    const m=$('#cfModal'); m.classList.remove('hide');
+    $('#cfBody').innerHTML=`<p style="margin-bottom:10px;font-size:13px">Field <b>${esc(conflict.field)}</b> has conflicting values:</p>
+      <div class="cf-vals"><div class="cf-opt" data-c="old"><div class="cf-lbl">Current (${esc(conflict.old_source)})</div><div class="cf-val">${esc(conflict.old_value)}</div></div>
+      <div class="cf-opt sel" data-c="new"><div class="cf-lbl">New (${esc(conflict.new_source)})</div><div class="cf-val">${esc(conflict.new_value)}</div></div></div>`;
+    let ch='new';
+    $$('.cf-opt',m).forEach(o=>o.addEventListener('click',()=>{$$('.cf-opt',m).forEach(x=>x.classList.remove('sel'));o.classList.add('sel');ch=o.dataset.c;}));
+    $('#cfFoot').innerHTML=`<button class="btn btn-g cf-sk">Skip</button><button class="btn btn-p cf-ap">Apply</button>`;
+    const close=(apply)=>{m.classList.add('hide');if(apply&&ch==='old'){kbSet(conflict.field,conflict.old_value,conflict.old_source);}resolve(ch);};
+    $('.cf-sk',m).addEventListener('click',()=>close(false));
+    $('.cf-ap',m).addEventListener('click',()=>close(true));
+  });
+}
+
+// ================================================================
+// PDF Form Loading
+// ================================================================
+let pdfDoc = null;
+const formDrop = $('#formDrop');
+formDrop.addEventListener('click',()=>$('#formFile').click());
+formDrop.addEventListener('dragover',e=>{e.preventDefault();formDrop.classList.add('drag');});
+formDrop.addEventListener('dragleave',()=>formDrop.classList.remove('drag'));
+formDrop.addEventListener('drop',e=>{e.preventDefault();formDrop.classList.remove('drag');if(e.dataTransfer.files[0])loadForm(e.dataTransfer.files[0]);});
+$('#formBrowse').addEventListener('click',e=>{e.stopPropagation();$('#formFile').click();});
+$('#formFile').addEventListener('change',e=>{if(e.target.files[0])loadForm(e.target.files[0]);});
+$('#navNewForm').addEventListener('click',()=>{
+  S.form=null; pdfDoc=null; S.pg=0; S.aIdx=-1;
+  $('#fillerUpload').classList.remove('hide');$('#fillerWS').classList.add('hide');
+  switchView('filler');
+});
+
+async function loadForm(file) {
+  toast('Analyzing form...');
+  const buf = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({data:buf}).promise;
+  const fields = [];
+
+  // Detect fields from text on each page
+  for (let i=1; i<=pdfDoc.numPages; i++) {
+    const pg = await pdfDoc.getPage(i);
+    const tc = await pg.getTextContent();
+    const vp = pg.getViewport({scale:1});
+    const lines = []; let curLine = []; let lastY = null;
+
+    tc.items.forEach(it=>{
+      const y = Math.round(it.transform[5]);
+      if (lastY !== null && Math.abs(y-lastY) > 3) { lines.push(curLine); curLine=[]; }
+      curLine.push({ str:it.str, x:it.transform[4], y, w:it.width, h:it.height });
+      lastY = y;
+    });
+    if(curLine.length) lines.push(curLine);
+
+    lines.forEach(items=>{
+      const text = items.map(it=>it.str).join('').trim();
+      if(!text) return;
+
+      const pats = [
+        [/^(.{3,50}):\s*_{2,}/, 'underline'],
+        [/^(.{3,50}):\s*$/, 'empty_colon'],
+        [/^(.{3,50})\s*\[\s*\]/, 'checkbox'],
+        [/^(.{3,50}):\s*\(\s*\)/, 'radio'],
+        [/^(.{3,50})\s*\.{3,}\s*(.*)$/, 'dotted'],
+      ];
+      for (const [pat,ftype] of pats) {
+        const m = text.match(pat);
+        if (m && m[1].trim().split(/\s+/).length <= 6) {
+          const firstItem = items[0];
+          fields.push({
+            id: Math.random().toString(36).slice(2,8),
+            name: m[1].trim(),
+            type: ftype,
+            current_value: ftype==='dotted' ? (m[2]||'').trim() : '',
+            page: i-1,
+            // Position for annotation overlay (in PDF coordinates)
+            x: firstItem.x,
+            y: vp.height - firstItem.y - (firstItem.h||12),
+            w: Math.max(200, items.reduce((s,it)=>s+it.w, 0)),
+            h: (firstItem.h||12) + 6,
+            vpW: vp.width,
+            vpH: vp.height,
+          });
+          break;
+        }
+      }
+    });
+  }
+
+  // Also detect AcroForm fields
+  // (pdf.js doesn't expose these easily, so we rely on text detection above)
+
+  // Deduplicate
+  const seen = new Set();
+  const unique = fields.filter(f=>{ if(seen.has(f.name)) return false; seen.add(f.name); return true; });
+
+  // Auto-match to KB
+  unique.forEach(f=>{
+    const m = kbMatch(f.name);
+    if(m) { f.filled_value=m.value; f.fill_source='knowledge_base'; f.confidence=m.confidence||1; }
+    else { f.filled_value=f.current_value||''; f.fill_source='none'; f.confidence=0; }
+    f.flagged = false;
+  });
+
+  S.form = { filename:file.name, pageCount:pdfDoc.numPages, fields:unique };
+  S.pg = 0; S.aIdx = -1;
+
+  $('#fillerUpload').classList.add('hide');
+  $('#fillerWS').classList.remove('hide');
+  $('#fpName').textContent = file.name;
+
+  await renderPage();
+  renderFieldList();
+  updateStats();
+
+  const firstEmpty = unique.findIndex(f=>!f.filled_value);
+  if(firstEmpty>=0) activateField(firstEmpty);
+
+  toast(unique.length+' fields detected','success');
+  showKbdHint();
+}
+
+// ================================================================
+// PDF Page Rendering
+// ================================================================
+const RENDER_SCALE = 1.5;
+
+async function renderPage() {
+  if(!pdfDoc) return;
+  const pg = await pdfDoc.getPage(S.pg+1);
+  const vp = pg.getViewport({scale:RENDER_SCALE});
+  const canvas = $('#pdfCanvas');
+  canvas.width = vp.width; canvas.height = vp.height;
+  const ctx = canvas.getContext('2d');
+  await pg.render({canvasContext:ctx, viewport:vp}).promise;
+
+  // Place annotations
+  const inner = $('#fpInner');
+  // Remove old annotations
+  $$('.f-ann', inner).forEach(el=>el.remove());
+
+  const pageFields = S.form.fields.filter(f=>f.page===S.pg);
+  pageFields.forEach(f=>{
+    const idx = S.form.fields.indexOf(f);
+    const ann = document.createElement('div');
+    ann.className = 'f-ann ' + (f.flagged?'f-ann-flag': f.filled_value?'f-ann-filled':'f-ann-empty') + (idx===S.aIdx?' act':'');
+    ann.dataset.idx = idx;
+
+    // Scale positions
+    const sx = (f.x / f.vpW) * vp.width;
+    const sy = (f.y / f.vpH) * vp.height;
+    const sw = Math.min((f.w / f.vpW) * vp.width, vp.width - sx - 4);
+    const sh = (f.h / f.vpH) * vp.height;
+
+    ann.style.cssText = `left:${sx}px;top:${sy}px;width:${sw}px;height:${Math.max(sh,22)}px;`;
+    ann.innerHTML = `<span class="f-ann-label">${esc(f.name)}</span>${f.filled_value?`<span class="f-ann-val">${esc(f.filled_value)}</span>`:''}`;
+    ann.addEventListener('click',()=>activateField(idx));
+    inner.appendChild(ann);
+  });
+
+  $('#pgInd').textContent = (S.pg+1)+' / '+S.form.pageCount;
+}
+
+// ================================================================
+// Field List
+// ================================================================
+function renderFieldList() {
+  const list=$('#fList'); let html='';
+  S.form.fields.forEach((f,idx)=>{
+    const ok=!!f.filled_value, fl=!!f.flagged, act=idx===S.aIdx;
+    const sc = f.fill_source==='knowledge_base'?'kb':(f.fill_source==='manual'||f.fill_source==='edited'?'man':'emp');
+    const sl = sc==='kb'?'KB':sc==='man'?'Manual':'Empty';
+    html+=`<div class="fc ${fl?'fl':ok?'ok':'no'} ${act?'act':''}" data-i="${idx}">
+      <div class="fc-top"><span class="fc-name">${esc(f.name)}</span><span class="fc-src ${sc}">${sl}</span></div>
+      <div class="fc-row"><input type="text" value="${escA(f.filled_value||'')}" placeholder="Enter value..." data-i="${idx}" class="fi"><button class="btn-i fa" data-i="${idx}" title="Accept & next (Enter)">&#10003;</button></div>
+      <div class="fc-meta"><span>Page ${f.page+1}</span>${f.confidence>0&&f.confidence<1?`<span>${Math.round(f.confidence*100)}% match</span>`:''}</div>
+    </div>`;
+  });
+  list.innerHTML=html;
+
+  $$('.fc',list).forEach(c=>c.addEventListener('click',e=>{
+    if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON') return;
+    activateField(+c.dataset.i);
+  }));
+
+  $$('.fi',list).forEach(inp=>{
+    inp.addEventListener('focus',()=>activateField(+inp.dataset.i));
+    inp.addEventListener('input',()=>{
+      const f=S.form.fields[+inp.dataset.i];
+      f.filled_value=inp.value;
+      f.fill_source=f.fill_source==='knowledge_base'?'edited':'manual';
+      updateStats();
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter') { e.preventDefault(); acceptAndAdvance(+inp.dataset.i); }
+      else if(e.key==='Tab') { e.preventDefault(); acceptAndAdvance(+inp.dataset.i); }
+    });
+  });
+
+  $$('.fa',list).forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();acceptAndAdvance(+btn.dataset.i);}));
+}
+
+function activateField(idx) {
+  if(!S.form||idx<0||idx>=S.form.fields.length) return;
+  S.aIdx=idx;
+  const f=S.form.fields[idx];
+  if(f.page!==S.pg) { S.pg=f.page; renderPage(); }
+  else {
+    $$('.f-ann').forEach(a=>{a.classList.remove('act');if(+a.dataset.idx===idx)a.classList.add('act');});
+  }
+  $$('.fc').forEach(c=>c.classList.remove('act'));
+  const card=$(`.fc[data-i="${idx}"]`);
+  if(card){
+    card.classList.add('act');
+    card.scrollIntoView({behavior:'smooth',block:'nearest'});
+    const inp=card.querySelector('.fi');
+    if(inp){inp.focus();inp.select();}
+  }
+  // Scroll annotation into view
+  const ann=$(`.f-ann[data-idx="${idx}"]`);
+  if(ann) ann.scrollIntoView({behavior:'smooth',block:'center'});
+  showKbdHint();
+}
+
+function acceptAndAdvance(idx) {
+  const f=S.form.fields[idx];
+  const inp=$(`.fi[data-i="${idx}"]`);
+  if(inp){f.filled_value=inp.value;if(!f.fill_source||f.fill_source==='none')f.fill_source='manual';}
+  updateStats();
+  renderPage();
+
+  // Find next empty
+  let next=-1;
+  for(let i=idx+1;i<S.form.fields.length;i++){if(!S.form.fields[i].filled_value){next=i;break;}}
+  if(next===-1) for(let i=0;i<idx;i++){if(!S.form.fields[i].filled_value){next=i;break;}}
+
+  // Update this card visually
+  const card=$(`.fc[data-i="${idx}"]`);
+  if(card){card.classList.remove('no');card.classList.add('ok');}
+
+  if(next>=0){activateField(next);}
+  else{toast('All fields filled!','success');runSanityCheck();}
+}
+
+function updateStats() {
+  if(!S.form) return;
+  const fs=S.form.fields, ok=fs.filter(f=>f.filled_value).length, fl=fs.filter(f=>f.flagged).length, no=fs.length-ok;
+  $('#stOk').textContent=ok+' filled';$('#stNo').textContent=no+' empty';$('#stFl').textContent=fl+' flagged';
+  // Completion ring
+  const pct = fs.length ? Math.round((ok/fs.length)*100) : 0;
+  const circ = 94.25;
+  $('#ringFg').style.strokeDashoffset = circ - (circ * pct/100);
+  $('#compPct').textContent = pct+'%';
+  if(pct===100) $('#ringFg').style.stroke='var(--ok)';
+  else if(pct>50) $('#ringFg').style.stroke='var(--pri)';
+  else $('#ringFg').style.stroke='var(--warn)';
+}
+
+// Page nav
+$('#pgPrev').addEventListener('click',()=>{if(S.pg>0){S.pg--;renderPage();}});
+$('#pgNext').addEventListener('click',()=>{if(S.form&&S.pg<S.form.pageCount-1){S.pg++;renderPage();}});
+document.addEventListener('keydown',e=>{
+  if(!S.form||e.target.tagName==='INPUT') return;
+  if(e.key==='ArrowLeft'&&S.pg>0){S.pg--;renderPage();}
+  if(e.key==='ArrowRight'&&S.pg<S.form.pageCount-1){S.pg++;renderPage();}
+});
+
+// ================================================================
+// Sanity Checks
+// ================================================================
+function runSanityCheck(page) {
+  let fields = S.form.fields;
+  if(page!==undefined) fields=fields.filter(f=>f.page===page);
+  const issues=[];
+  fields.forEach(f=>{
+    const n=f.name.toLowerCase(), v=f.filled_value||'';
+    if(!v) return;
+    if(/date|dob|birth/.test(n)&&!/\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(v)&&!/\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}/.test(v))
+      issues.push({field:f.name,type:'format',message:`'${v}' may not be a valid date`,severity:'warning'});
+    if(/e[-]?mail/.test(n)&&!/[^@\s]+@[^@\s]+\.[^@\s]+/.test(v))
+      issues.push({field:f.name,type:'format',message:`'${v}' may not be a valid email`,severity:'warning'});
+    if(/phone|tel|mobile|fax/.test(n)){const d=v.replace(/\D/g,'');if(d.length<7||d.length>15)issues.push({field:f.name,type:'format',message:`'${v}' may not be a valid phone`,severity:'warning'});}
+    if(/zip|postal/.test(n)&&!/^\d{5}(-\d{4})?$/.test(v))
+      issues.push({field:f.name,type:'format',message:`'${v}' may not be a valid ZIP code`,severity:'warning'});
+    if(/ssn|social\s*security/.test(n)&&!/^\d{9}$/.test(v.replace(/[\s\-]/g,'')))
+      issues.push({field:f.name,type:'format',message:'SSN should be 9 digits',severity:'error'});
+  });
+  // Cross-field
+  const vals={};fields.forEach(f=>{vals[f.name.toLowerCase()]=f.filled_value||'';});
+  const fn=vals['full name']||'',fi=vals['first name']||'',la=vals['last name']||'';
+  if(fn&&fi&&!fn.includes(fi))issues.push({field:'First Name / Full Name',type:'consistency',message:`'${fi}' not in '${fn}'`,severity:'error'});
+  if(fn&&la&&!fn.includes(la))issues.push({field:'Last Name / Full Name',type:'consistency',message:`'${la}' not in '${fn}'`,severity:'error'});
+
+  showSanityResults(issues);
+}
+
+function showSanityResults(issues) {
+  const p=$('#sanPanel'), b=$('#sanBody'); p.classList.remove('hide');
+  if(!issues.length){
+    b.innerHTML='<div class="san-ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="vertical-align:middle"><polyline points="20 6 9 17 4 12"/></svg> All checks passed</div>';
+    S.form.fields.forEach(f=>{f.flagged=false;}); renderFieldList(); renderPage(); return;
+  }
+  S.form.fields.forEach(f=>{f.flagged=false;});
+  issues.forEach(iss=>{const f=S.form.fields.find(ff=>ff.name.toLowerCase()===iss.field.toLowerCase());if(f)f.flagged=true;});
+  renderFieldList(); renderPage(); updateStats();
+
+  let h='';
+  issues.forEach(iss=>{
+    const ic=iss.severity==='error'?'&#10007;':iss.severity==='warning'?'&#9888;':'&#8505;';
+    h+=`<div class="san-i"><div class="san-ic ${iss.severity}">${ic}</div><div><div class="san-fn">${esc(iss.field)}</div><div class="san-msg">${esc(iss.message)}</div></div></div>`;
+  });
+  b.innerHTML=h;
+}
+$('#chkAll').addEventListener('click',()=>runSanityCheck());
+$('#chkPage').addEventListener('click',()=>runSanityCheck(S.pg));
+$('#sanClose').addEventListener('click',()=>$('#sanPanel').classList.add('hide'));
+
+// ================================================================
+// Save Form
+// ================================================================
+$('#saveForm').addEventListener('click',()=>{
+  S.form.fields.forEach(f=>{
+    if(f.filled_value&&(f.fill_source==='manual'||f.fill_source==='edited'))
+      kbSet(f.name,f.filled_value,'form_fill');
+  });
+  runSanityCheck();
+  toast('Saved! Knowledge base updated.','success');
+  renderKB();
+});
+
+// ================================================================
+// Setup Wizard
+// ================================================================
+const WIZ_STEPS = [
+  {title:'Personal Information',desc:'Basic identity info used on most forms.',fields:[
+    {key:'First Name',ph:'John'},{key:'Last Name',ph:'Doe'},{key:'Date of Birth',ph:'MM/DD/YYYY',type:'text'},{key:'Gender',ph:'Male / Female / Other'}]},
+  {title:'Contact Details',desc:'How you can be reached.',fields:[
+    {key:'Email',ph:'john@example.com',type:'email'},{key:'Phone',ph:'(555) 123-4567',type:'tel'},{key:'Mobile Phone',ph:'(555) 987-6543',type:'tel'}]},
+  {title:'Address',desc:'Your primary mailing address.',fields:[
+    {key:'Street Address',ph:'123 Main St'},{key:'City',ph:'Springfield'},{key:'State',ph:'IL'},{key:'ZIP Code',ph:'62701'},{key:'Country',ph:'United States'}]},
+  {title:'Employment',desc:'Current job details.',fields:[
+    {key:'Employer',ph:'Acme Corp'},{key:'Job Title',ph:'Software Engineer'},{key:'Work Phone',ph:'(555) 456-7890',type:'tel'},{key:'Work Email',ph:'john@acme.com',type:'email'}]},
+  {title:'Additional IDs',desc:'Common identification numbers. Leave blank to skip.',fields:[
+    {key:'SSN',ph:'XXX-XX-XXXX'},{key:'Driver License Number',ph:''},{key:'Passport Number',ph:''}]},
+];
+
+function renderWizStep() {
+  const step=WIZ_STEPS[S.wizStep], body=$('#wizBody');
+  let h=`<div class="wiz-step"><h3>${step.title}</h3><p>${step.desc}</p>`;
+  step.fields.forEach(f=>{
+    h+=`<div class="wiz-f"><label>${f.key}</label><input type="${f.type||'text'}" placeholder="${f.ph||''}" value="${escA(S.wizData[f.key]||'')}" data-k="${escA(f.key)}" class="wi"></div>`;
+  });
+  h+='</div>'; body.innerHTML=h;
+  const inps=$$('.wi',body);
+  const fe=inps.find(i=>!i.value);(fe||inps[0])?.focus();
+  inps.forEach(inp=>inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();const i=inps.indexOf(inp);if(i<inps.length-1)inps[i+1].focus();else advanceWiz();}
+  }));
+  const pct=((S.wizStep+1)/WIZ_STEPS.length)*100;
+  $('#wizProg').style.width=pct+'%';
+  $('#wizLbl').textContent=`Step ${S.wizStep+1} of ${WIZ_STEPS.length}`;
+  $('#wizBack').disabled=S.wizStep===0;
+  $('#wizNext').textContent=S.wizStep===WIZ_STEPS.length-1?'Finish':'Next';
+}
+
+function collectWiz(){$$('.wi').forEach(i=>{const v=i.value.trim();if(v)S.wizData[i.dataset.k]=v;});}
+function advanceWiz(){
+  collectWiz();
+  if(S.wizStep<WIZ_STEPS.length-1){S.wizStep++;renderWizStep();}
+  else {
+    for(const[k,v]of Object.entries(S.wizData)) kbSet(k,v,'setup_wizard');
+    $('#wizOv').classList.add('hide');toast('Knowledge base initialized!','success');renderKB();
+  }
+}
+$('#wizNext').addEventListener('click',advanceWiz);
+$('#wizBack').addEventListener('click',()=>{collectWiz();if(S.wizStep>0){S.wizStep--;renderWizStep();}});
+$('#wizSkip').addEventListener('click',()=>{
+  collectWiz();if(Object.values(S.wizData).some(v=>v))for(const[k,v]of Object.entries(S.wizData))kbSet(k,v,'setup_wizard');
+  $('#wizOv').classList.add('hide');
+});
+$('#kbWiz').addEventListener('click',()=>{S.wizStep=0;S.wizData={};renderWizStep();$('#wizOv').classList.remove('hide');});
+
+// Keyboard hint
+let kbdTimeout;
+function showKbdHint(){$('#kbdHint').classList.add('show');clearTimeout(kbdTimeout);kbdTimeout=setTimeout(()=>$('#kbdHint').classList.remove('show'),4000);}
+
+// ================================================================
+// Init
+// ================================================================
+loadKB();
+renderKB();
+if(!Object.keys(S.kb).length){S.wizStep=0;S.wizData={};renderWizStep();$('#wizOv').classList.remove('hide');}
+
+</script>
+</body>
+</html>

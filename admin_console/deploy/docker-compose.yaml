@@ -1,0 +1,88 @@
+# NTXP Admin Console - local / manual stack (run from a clone of the repo).
+#
+#   cp admin_console/deploy/.env.example admin_console/deploy/.env   # fill in values
+#   docker compose -f admin_console/deploy/docker-compose.yaml up -d --build
+#   # no reverse proxy on the box? add automatic HTTPS for admin.ntxpllc.com:
+#   docker compose -f admin_console/deploy/docker-compose.yaml --profile tls up -d --build
+#
+# The Hostinger Docker Manager project uses the repo-root docker-compose.yaml instead
+# (same services; it builds from the GitHub URL and inlines emails/Caddyfile).
+# Keep the two files in step. See admin_console/deploy/DEPLOY.md.
+#
+# Exposure: only oauth2-proxy (127.0.0.1:4180 by default) or caddy (80/443) publish ports.
+# The app has no published port and trusts X-Forwarded-Email only because of that.
+
+name: ntxp-admin
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: admin_console/deploy/Dockerfile
+    image: ntxp-admin-app:local
+    env_file:
+      - path: .env
+        required: true
+    restart: unless-stopped
+    volumes:
+      - app_data:/data   # analytics store; survives rebuilds and restarts
+    expose:
+      - "8080"
+    networks: [internal]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    depends_on: [app]
+    restart: unless-stopped
+    command:
+      - --provider=google
+      - --http-address=0.0.0.0:4180
+      - --upstream=http://app:8080
+      - --redirect-url=https://admin.ntxpllc.com/oauth2/callback
+      # Allow-list = exactly the two owners. --email-domain is deliberately NOT set:
+      # oauth2-proxy admits an email that matches the domain OR the file, so
+      # --email-domain=ntxpllc.com would let every NTXP account through.
+      # The OAuth client is "Internal", which already limits sign-in to ntxpllc.com.
+      - --authenticated-emails-file=/etc/oauth2-proxy/emails.txt
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --reverse-proxy=true
+      - --cookie-secure=true
+      - --cookie-samesite=lax
+      - --cookie-name=_ntxp_admin
+      - --cookie-expire=12h
+      - --skip-provider-button=false
+      - --prompt=select_account
+    environment:
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID:?set OAUTH2_PROXY_CLIENT_ID in .env}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET:?set OAUTH2_PROXY_CLIENT_SECRET in .env}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?set OAUTH2_PROXY_COOKIE_SECRET in .env}
+    volumes:
+      - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
+    ports:
+      # Loopback by default so an existing host proxy can front it.
+      - "${OAUTH2_PROXY_BIND_ADDR:-127.0.0.1}:${OAUTH2_PROXY_BIND_PORT:-4180}:4180"
+    networks: [internal]
+
+  caddy:
+    image: caddy:2.8.4
+    profiles: [tls]
+    depends_on: [oauth2-proxy]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+
+networks:
+  internal: {}
+
+volumes:
+  app_data: {}
+  caddy_data: {}
+  caddy_config: {}

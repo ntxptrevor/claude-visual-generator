@@ -1,0 +1,104 @@
+# NTXP Admin Console - Hostinger Docker Manager project (admin.ntxpllc.com).
+#
+# Hostinger: VPS_createNewProjectV1 { project_name: "ntxp-admin",
+#   content: "https://github.com/ntxptrevor/claude-visual-generator" } resolves this file.
+# It is self-contained on purpose: the app builds from the GitHub URL and the
+# owner allow-list / Caddyfile are inlined, so it works whether or not Hostinger
+# clones the whole repo. Needs Docker Compose >= 2.24.
+#
+# Variables come from the project environment (Hostinger writes it to .env beside
+# this file). Set COMPOSE_PROFILES=tls only when the VPS has no other reverse proxy.
+# Mirror of admin_console/deploy/docker-compose.yaml - keep the two in step, and keep
+# the emails block identical to admin_console/deploy/emails.txt.
+# Full procedure: admin_console/deploy/DEPLOY.md
+
+name: ntxp-admin
+
+services:
+  app:
+    build:
+      context: https://github.com/ntxptrevor/claude-visual-generator.git#${NTXP_ADMIN_GIT_REF:-master}
+      dockerfile: admin_console/deploy/Dockerfile
+    image: ntxp-admin-app:${NTXP_ADMIN_GIT_REF:-master}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    volumes:
+      - app_data:/data   # analytics store; survives rebuilds and restarts
+    expose:
+      - "8080"
+    networks: [internal]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    depends_on: [app]
+    restart: unless-stopped
+    command:
+      - --provider=google
+      - --http-address=0.0.0.0:4180
+      - --upstream=http://app:8080
+      - --redirect-url=https://admin.ntxpllc.com/oauth2/callback
+      # Exactly the two owners. --email-domain is deliberately NOT set: oauth2-proxy
+      # admits domain OR file matches, so --email-domain=ntxpllc.com would admit every
+      # NTXP account. The Internal OAuth client already limits sign-in to ntxpllc.com.
+      - --authenticated-emails-file=/etc/oauth2-proxy/emails.txt
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --reverse-proxy=true
+      - --cookie-secure=true
+      - --cookie-samesite=lax
+      - --cookie-name=_ntxp_admin
+      - --cookie-expire=12h
+      - --skip-provider-button=false
+      - --prompt=select_account
+    environment:
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID:?set OAUTH2_PROXY_CLIENT_ID in the project environment}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET:?set OAUTH2_PROXY_CLIENT_SECRET in the project environment}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?set OAUTH2_PROXY_COOKIE_SECRET in the project environment}
+    configs:
+      - source: owner_emails
+        target: /etc/oauth2-proxy/emails.txt
+    ports:
+      # Loopback by default so an existing host reverse proxy can front it.
+      - "${OAUTH2_PROXY_BIND_ADDR:-127.0.0.1}:${OAUTH2_PROXY_BIND_PORT:-4180}:4180"
+    networks: [internal]
+
+  caddy:
+    image: caddy:2.8.4
+    profiles: [tls]
+    depends_on: [oauth2-proxy]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+
+configs:
+  owner_emails:
+    content: |
+      trevor@ntxpllc.com
+      alison@ntxpllc.com
+  caddyfile:
+    content: |
+      admin.ntxpllc.com {
+        encode gzip
+        reverse_proxy oauth2-proxy:4180 {
+          flush_interval -1
+        }
+      }
+
+networks:
+  internal: {}
+
+volumes:
+  app_data: {}
+  caddy_data: {}
+  caddy_config: {}

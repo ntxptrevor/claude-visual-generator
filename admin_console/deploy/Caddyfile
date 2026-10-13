@@ -1,0 +1,9 @@
+# Used only with the compose profile "tls" (no other reverse proxy on the VPS).
+# Caddy obtains and renews the Let's Encrypt certificate automatically.
+admin.ntxpllc.com {
+	encode gzip
+	reverse_proxy oauth2-proxy:4180 {
+		# keep Server-Sent Events (/api/analytics/stream) live
+		flush_interval -1
+	}
+}

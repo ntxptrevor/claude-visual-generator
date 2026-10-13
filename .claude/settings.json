@@ -1,0 +1,74 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "NotebookEdit",
+      "mcp__Google_Drive",
+      "mcp__Google_Sheets",
+      "mcp__Google_Docs",
+      "mcp__Google_Calendar",
+      "mcp__Gmail",
+      "mcp__JobTread",
+      "mcp__Plaud_AI",
+      "mcp__Quo",
+      "mcp__Lightfield",
+      "mcp__Intuit_QuickBooks",
+      "mcp__Mercury",
+      "mcp__Hostinger_Connector",
+      "mcp__Slack",
+      "mcp__GovTribe",
+      "mcp__TinyFish",
+      "mcp__PDF_Viewer",
+      "mcp__Adobe_for_creativity",
+      "mcp__Canva",
+      "mcp__Gamma",
+      "mcp__Claude_Docs",
+      "mcp__Claude_Code_Remote",
+      "mcp__iCloud_MCP",
+      "mcp__Remote_Desktop_Commander",
+      "mcp__Zapier",
+      "mcp__Supabase",
+      "mcp__Vercel",
+      "mcp__Cloudflare_Developer_Platform",
+      "mcp__HubSpot",
+      "mcp__Expensify",
+      "mcp__Elicit",
+      "mcp__Hugging_Face",
+      "mcp__Mermaid_Chart",
+      "mcp__Felt_Maps",
+      "mcp__Postman"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session_start.py"}
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__.*",
+        "hooks": [
+          {"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tier3_guard.py"}
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/audit_log.py"}
+        ]
+      }
+    ]
+  }
+}

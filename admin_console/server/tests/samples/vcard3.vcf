@@ -1,0 +1,30 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Brenda Walsh
+N:Walsh;Brenda;;;
+ORG:Denton ISD (example);Construction
+TITLE:Construction Manager
+EMAIL;TYPE=INTERNET,WORK:bwalsh@dentonisd.example.org
+TEL;TYPE=WORK,VOICE:(940) 555-0142
+TEL;TYPE=CELL:+1 940 555 0199
+ADR;TYPE=WORK:;;1307 N Locust St;Denton;TX;76201;USA
+NOTE:Prefers calls before 9am.\nGate code 4471
+  (ask at front desk)
+CATEGORIES:Owners,Denton ISD
+END:VCARD
+BEGIN:VCARD
+VERSION:2.1
+N;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Pe=C3=B1a;Jos=C3=A9;;;
+FN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Jos=C3=A9 Pe=C3=B1a
+TEL;WORK;VOICE:214-555-0111
+EMAIL;INTERNET:jose@penaconcrete.example.com
+NOTE;ENCODING=QUOTED-PRINTABLE:Concrete sub. Long note that is soft=
+broken across lines.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Ortega Electric
+ORG:Ortega Electric (example)
+item1.EMAIL;type=INTERNET;type=pref:luis@ortegaelectric.example.com
+item1.X-ABLabel:Office
+END:VCARD
