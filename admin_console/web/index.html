@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#04070C">
+<title>NTXP Admin</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%230B1D33'/%3E%3Cpath d='M10 29V11l10 13V11M24 11l6 9-6 9' fill='none' stroke='%23F7F8FA' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,500;0,600;0,700;1,600;1,700;1,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="backdrop" aria-hidden="true">
+  <div class="backdrop-mark">
+    <span class="kicker">NTXP 2.1</span>
+    <span class="backdrop-title">NTXP Admin</span>
+    <span class="backdrop-hint">Press <kbd>g</kbd> <kbd>a</kbd> or use the launcher</span>
+  </div>
+</div>
+
+<button type="button" class="launcher" id="launcher" aria-label="Open NTXP Admin console" aria-controls="console" aria-expanded="false">
+  <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="10" fill="none" stroke="currentColor" stroke-opacity=".35"/><path d="M10 29V11l10 13V11M24 11l6 9-6 9M30 11l-3 4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span class="launcher-label">NTXP Admin</span>
+  <span class="launcher-badge" id="launcher-badge" hidden></span>
+</button>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<section class="console" id="console" role="dialog" aria-modal="true" aria-labelledby="console-title" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M10 29V11l10 13V11M24 11l6 9-6 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="brand-text">
+        <span class="kicker kicker-gold">NTXP 2.1</span>
+        <h1 id="console-title">NTXP Admin</h1>
+      </div>
+    </div>
+    <form class="global-search" id="global-search" role="search">
+      <label class="sr-only" for="global-q">Search mail, files, contacts</label>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="global-q" type="search" placeholder="Search mail, files, people…" autocomplete="off">
+      <kbd class="hide-sm">/</kbd>
+    </form>
+    <div class="topbar-right">
+      <div class="health-wrap">
+        <button type="button" class="status-btn" id="status-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="health-pop">
+          <span class="dot" id="status-dot"></span><span id="status-label">Connecting</span>
+        </button>
+        <div class="popover" id="health-pop" role="dialog" aria-label="Source health" hidden></div>
+      </div>
+      <div class="me" id="me" aria-live="polite"></div>
+      <button type="button" class="icon-btn hide-sm" id="pin-btn" aria-pressed="false" aria-label="Pin to full page" title="Pin to full page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="close-btn" aria-label="Close console (Esc)" title="Close (Esc)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="bounding-line" aria-hidden="true"></div>
+  <div class="console-body">
+    <nav class="rail" id="rail" aria-label="Modules"></nav>
+    <main class="main" id="main" tabindex="-1"></main>
+  </div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden></aside>
+  <div class="dialog-layer" id="dialog-layer" hidden></div>
+</section>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="demo-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

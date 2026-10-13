@@ -23,3 +23,11 @@ These rules are hard-coded in `scripts/formflow_signatures.py` (`NTXP_IDENTITY`)
 `scripts/formflow_workflow_registry.py` (W-9 `fixed_values`), and
 `skills/form-filler/SKILL.md` (Tier 1 Rules section). The FormFlow KB Sheet
 (`1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug`) carries the same values.
+
+## Where things are
+
+- **Agent manual:** `docs/AGENT_MANUAL.md` (JEV routing, change gate, hooks, escalation ladder).
+- **Stuck workflows (human admins):** `docs/ADMIN_RUNBOOK.md`, generated from `admin_console/runbook_seed.json`.
+- **NTXP Admin Console** (admin.ntxpllc.com, owners only): `admin_console/` — contract in `API.md`,
+  deploy in `admin_console/deploy/DEPLOY.md`. Demo: `NTXP_ADMIN_DEMO=1 uvicorn admin_console.server.app:app`.
+- **Hooks:** `.claude/hooks/` — SessionStart context, PreToolUse Tier 3 guard, PostToolUse audit log.

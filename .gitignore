@@ -16,3 +16,9 @@ slide_image_gen/
 ntxp-workspace-sa.json
 *maps-api-key*
 .config/ntxp/
+
+# NTXP Admin Console deploy secrets
+admin_console/deploy/.env
+
+# Claude Code tool audit log (local only)
+.claude/audit/

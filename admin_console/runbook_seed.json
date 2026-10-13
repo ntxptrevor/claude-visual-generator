@@ -1,0 +1,795 @@
+[
+  {
+    "id": "RB-001",
+    "workflow": "Google access and DWD",
+    "symptom": "Any Google call fails with \"403 unauthorized_client\" or \"Client is unauthorized to retrieve access tokens using this method\".",
+    "likely_cause": "The service account's Client ID is not listed under domain-wide delegation, or it was listed with a different scope set than the code now asks for.",
+    "steps": [
+      "Ask Trevor for the service-account Client ID (a long number). He can print it with: gcloud iam service-accounts describe ntxp-workspace-agent@ntxp-workspace-agent.iam.gserviceaccount.com --format='value(oauth2ClientId)'.",
+      "Sign in to https://admin.google.com/ac/owl/domainwidedelegation as a Workspace super admin.",
+      "Find the row with that Client ID. If there is none, click Add new.",
+      "Get the full scope list by running: python3 scripts/google_workspace/ntxp_google_access.py scopes --csv. Paste it into the OAuth scopes box exactly, replacing what is there, and click Authorize.",
+      "Wait 5 minutes (Google can take up to 24 hours, usually minutes), then test with: python3 scripts/google_workspace/ntxp_google_access.py whoami.",
+      "If it still fails after one hour, escalate."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-002",
+    "workflow": "Google access and DWD",
+    "symptom": "One Google area works (for example Gmail) but another fails with \"access_denied\" or \"Requested scope not authorized\" (often Admin Reports, Contacts or Calendar).",
+    "likely_cause": "A scope was added to the access layer after delegation was set up, so the delegation entry is missing it.",
+    "steps": [
+      "Run: python3 scripts/google_workspace/ntxp_google_access.py scopes --csv and copy the output.",
+      "Open https://admin.google.com/ac/owl/domainwidedelegation, click the NTXP Workspace Agent row, then Edit.",
+      "Compare the scope list. Replace it with the full copied list (do not remove scopes that are still in the copied list).",
+      "Save, wait 5 minutes, retry the failing screen in the admin console.",
+      "Write the date and the scope you added into this entry's notes in the Admin Runbook sheet."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-003",
+    "workflow": "Google access and DWD",
+    "symptom": "setup_dwd.sh prints \"Key creation blocked by org policy; using keyless mode instead\", or Cloud Console says service account key creation is disabled.",
+    "likely_cause": "The Google Cloud org policy iam.disableServiceAccountKeyCreation is on. Keyless mode works on a laptop but the VPS container has no Google login, so the admin console needs a key.",
+    "steps": [
+      "Do not try to switch the policy off for the whole organization.",
+      "Escalate to Trevor with the exact message. He decides between (a) a policy exception for the single project ntxp-workspace-agent only, or (b) keyless mode with a workload identity on the VPS.",
+      "If an exception is approved: in Cloud Console go to IAM & Admin > Organization Policies, select project ntxp-workspace-agent, open 'Disable service account key creation', choose Override parent's policy, set Enforcement Off, save.",
+      "Re-run: bash scripts/google_workspace/setup_dwd.sh. Move the key contents into the NTXP vault as NTXP_GOOGLE_SA_KEY and delete the local file in ~/.config/ntxp/.",
+      "Re-enable the policy override (Enforcement On) once the key is created."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-004",
+    "workflow": "Google access and DWD",
+    "symptom": "Error says the user to impersonate is outside the domain, or \"subject must be an @ntxpllc.com user\".",
+    "likely_cause": "Someone asked the tool to act as a personal Gmail, a contractor address, or a misspelled address. The access layer refuses anything outside ntxpllc.com by design.",
+    "steps": [
+      "Check the address for typos (for example ntxpllc.co or ntxp.com).",
+      "Use the person's @ntxpllc.com address. External people cannot be impersonated; ask them to share the file or message instead.",
+      "Do not change NTXP_GOOGLE_DOMAIN to get around this."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-005",
+    "workflow": "Google access and DWD",
+    "symptom": "\"invalid_grant\" or \"Invalid email or User ID\" when reading one person's mailbox or Drive.",
+    "likely_cause": "That account is suspended, deleted, renamed, or has no Gmail/Drive licence.",
+    "steps": [
+      "Open https://admin.google.com > Directory > Users and search the name.",
+      "If suspended or deleted, this is expected; the analytics skip that person. Note it on the flag and dismiss.",
+      "If renamed, use the new primary address (aliases cannot be impersonated).",
+      "If the account has no licence, Trevor decides whether to assign one."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-006",
+    "workflow": "Google access and DWD",
+    "symptom": "Server log shows a JSON decode error or \"Could not deserialize key data\" on start-up; every Google source shows error.",
+    "likely_cause": "NTXP_GOOGLE_SA_KEY was pasted with broken line breaks, extra quotes, or only part of the JSON.",
+    "steps": [
+      "Open the NTXP vault entry for NTXP_GOOGLE_SA_KEY and confirm it starts with { and ends with } and contains \"private_key\".",
+      "In Hostinger hPanel > VPS > Docker Manager > ntxp-admin project > Environment, paste the value again as one line (the \\n sequences inside private_key must stay as the two characters backslash and n).",
+      "Restart the project (Docker Manager > Restart) and check /api/health from the console's Status card.",
+      "Never paste the key into chat, email, a ticket or this runbook."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-007",
+    "workflow": "Google access and DWD",
+    "symptom": "The console Status card shows gmail, drive, calendar, contacts, directory and reports as \"unconfigured\".",
+    "likely_cause": "The VPS project environment is missing NTXP_GOOGLE_SA_KEY (or NTXP_GOOGLE_SA_EMAIL) or NTXP_GOOGLE_ADMIN_SUBJECT, or NTXP_ADMIN_DEMO is still on.",
+    "steps": [
+      "In hPanel open the VPS > Docker Manager > ntxp-admin > Environment.",
+      "Confirm NTXP_GOOGLE_SA_KEY and NTXP_GOOGLE_ADMIN_SUBJECT are present and not empty. Copy missing values from the NTXP vault.",
+      "Confirm NTXP_ADMIN_DEMO is empty or false in production.",
+      "Restart the project and reload the Status card."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-008",
+    "workflow": "Google access and DWD",
+    "symptom": "User list or login reports fail with \"Not Authorized to access this resource/api\" while Gmail and Drive work.",
+    "likely_cause": "NTXP_GOOGLE_ADMIN_SUBJECT is a normal user, not a Workspace super admin; the Admin Directory and Reports APIs need an admin to impersonate.",
+    "steps": [
+      "In https://admin.google.com > Account > Admin roles, check that the account in NTXP_GOOGLE_ADMIN_SUBJECT holds Super Admin.",
+      "If not, set NTXP_GOOGLE_ADMIN_SUBJECT to an account that does (ask Trevor which).",
+      "Granting a new super admin is an owner decision; do not grant it yourself."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-009",
+    "workflow": "Google access and DWD",
+    "symptom": "A Google service-account key, OAuth client secret or API key was pasted somewhere public (GitHub, email, chat, a shared doc).",
+    "likely_cause": "Human or agent error. The repo is public; anything committed is exposed immediately.",
+    "steps": [
+      "Treat it as an incident now, not later. Tell Trevor and Alison by phone.",
+      "Trevor: delete the exposed key in Cloud Console > IAM & Admin > Service Accounts > ntxp-workspace-agent > Keys.",
+      "Trevor: if a service-account key leaked, remove the Client ID at https://admin.google.com/ac/owl/domainwidedelegation until a new key is issued.",
+      "Create a new key, store it only in the NTXP vault and the VPS project environment, restart the project.",
+      "Remove the secret from the place it leaked (a git history rewrite needs Trevor). Log what happened in the Learning tab."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-010",
+    "workflow": "Admin console login",
+    "symptom": "After choosing a Google account, admin.ntxpllc.com shows the oauth2-proxy \"403 Forbidden / Permission Denied\" page for Trevor or Alison.",
+    "likely_cause": "The browser signed in with a different Google account (personal Gmail or an alias), or the address is missing or misspelled in admin_console/deploy/emails.txt (and the inline copy in docker-compose.yaml).",
+    "steps": [
+      "Open https://admin.ntxpllc.com/oauth2/sign_out, then sign in again and pick exactly trevor@ntxpllc.com or alison@ntxpllc.com.",
+      "Try a private/incognito window to rule out a second signed-in Google account.",
+      "If it still fails, Trevor checks emails.txt and the emails config block in docker-compose.yaml: each address on its own line, lower case, no spaces.",
+      "Editing the allowed list is a permission change (Tier 3) and needs owner approval before redeploy."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-011",
+    "workflow": "Admin console login",
+    "symptom": "Google shows \"Error 400: redirect_uri_mismatch\" when signing in.",
+    "likely_cause": "The OAuth web client in Google Cloud does not list https://admin.ntxpllc.com/oauth2/callback exactly, or OAUTH2_PROXY_CLIENT_ID points at a different client.",
+    "steps": [
+      "In Google Cloud Console > APIs & Services > Credentials, open the 'NTXP Admin Console' OAuth client.",
+      "Under Authorized redirect URIs make sure this exact line exists: https://admin.ntxpllc.com/oauth2/callback (https, no trailing slash).",
+      "Confirm the Client ID shown there matches OAUTH2_PROXY_CLIENT_ID in the VPS project environment.",
+      "Save, wait 5 minutes, try again."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-012",
+    "workflow": "Admin console login",
+    "symptom": "The page keeps bouncing between Google and admin.ntxpllc.com (sign-in loop), or says \"cookie not found\" / CSRF error.",
+    "likely_cause": "The cookie secret changed or is the wrong length, the site was opened over http, or the browser blocks cookies for the site.",
+    "steps": [
+      "Clear cookies for admin.ntxpllc.com (browser settings > Privacy > Site data), close the tab, open https://admin.ntxpllc.com again.",
+      "Make sure the address starts with https://. The proxy only sets secure cookies.",
+      "Trevor: confirm OAUTH2_PROXY_COOKIE_SECRET is exactly 32 characters (generated as in DEPLOY.md step b). If it was regenerated, everyone must sign in again; that is expected.",
+      "Trevor: confirm the VPS clock is correct (timedatectl). A clock off by minutes breaks Google tokens."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-013",
+    "workflow": "Admin console login",
+    "symptom": "Google sign-in succeeds but the console shows {\"code\": \"not_owner\"} or a blank panel with 403 on every /api call.",
+    "likely_cause": "The app is not receiving the X-Forwarded-Email header: oauth2-proxy is missing --pass-user-headers, or someone reached the app container directly.",
+    "steps": [
+      "Trevor: check the oauth2-proxy command in docker-compose.yaml includes --pass-user-headers=true and --upstream=http://app:8080.",
+      "Confirm the app service has no ports: section (it must only be reachable through oauth2-proxy).",
+      "Redeploy and retry. Do not weaken the server's owner check to make it work."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-014",
+    "workflow": "Admin console login",
+    "symptom": "An NTXP employee (not Trevor or Alison) reports they get 403 at admin.ntxpllc.com.",
+    "likely_cause": "Working as designed. Only the two owners may use the console.",
+    "steps": [
+      "Tell the employee the console is owner-only and no action is needed.",
+      "Do not add them to emails.txt. Access for anyone else is an owner decision.",
+      "If the employee needs data from the console, ask Trevor to share the specific report."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-015",
+    "workflow": "Admin console login",
+    "symptom": "After signing in, the page shows \"502 Bad Gateway\" or \"upstream connect error\".",
+    "likely_cause": "oauth2-proxy is up but the app container is stopped, crashing or still starting.",
+    "steps": [
+      "Wait 60 seconds and reload; the app may be restarting.",
+      "If it persists, follow RB-016 (container down)."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-016",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "admin.ntxpllc.com does not load, shows 502, or Docker Manager shows a container as Exited/Restarting.",
+    "likely_cause": "The app or proxy container crashed (bad env value, code error after a deploy) or the VPS rebooted.",
+    "steps": [
+      "In hPanel > VPS > Docker Manager, open the ntxp-admin project and note which container is not Running.",
+      "Open its Logs and copy the last 30 lines into the ticket (remove anything that looks like a key).",
+      "Click Restart on the project (API: VPS_restartProjectV1). Restart keeps data.",
+      "If it crashes again with the same log, stop and escalate with the log lines.",
+      "Do not click Delete on the project."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-017",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "App container logs show ModuleNotFoundError, ImportError or \"Error loading ASGI app\" right after a deploy.",
+    "likely_cause": "The new code has a missing dependency or a file path changed; the image built from an older or partial commit.",
+    "steps": [
+      "Trevor: check the commit on the default branch builds locally: docker build -f admin_console/deploy/Dockerfile .",
+      "Add the missing package to admin_console/server/requirements.txt, push, then redeploy (DEPLOY.md step d).",
+      "To get back up fast, roll back per DEPLOY.md step g."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-018",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "Browser warns \"Your connection is not private\" or Caddy logs show \"obtaining certificate\" errors / ACME challenge failed.",
+    "likely_cause": "DNS for admin.ntxpllc.com does not point at the VPS yet, ports 80/443 are blocked by the VPS firewall, or another proxy already holds 80/443.",
+    "steps": [
+      "Check DNS first (RB-019). Caddy cannot get a certificate until admin.ntxpllc.com resolves to the VPS IP.",
+      "In hPanel > VPS > Firewall, confirm inbound TCP 80 and 443 are allowed.",
+      "If the VPS already runs a reverse proxy (the MCP gateway's), do not use the tls profile; route admin.ntxpllc.com through that proxy instead (DEPLOY.md step d).",
+      "After fixing, restart the project and wait 2 minutes for the certificate."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-019",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "admin.ntxpllc.com \"site can't be reached\" / DNS_PROBE_FINISHED_NXDOMAIN, or it resolves to the wrong IP.",
+    "likely_cause": "The A record was not created, was created on the wrong name, or has not propagated yet.",
+    "steps": [
+      "Check at https://dns.google/query?name=admin.ntxpllc.com&type=A. The answer must be the VPS IP from hPanel.",
+      "If there is no answer, ask Trevor to run the DNS chain in DEPLOY.md step e (snapshot, validate, update with overwrite false, verify).",
+      "If the answer is right but your computer still fails, wait up to the record's TTL (default 300 s to 1 hour) or try on phone data.",
+      "DNS changes on ntxpllc.com are Tier 3 and need owner approval; never change MX, NS or other records while fixing this."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-020",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "A Hostinger API or MCP call fails: 401, 405, timeout, \"Server already initialized\", or the connector will not start.",
+    "likely_cause": "Known Hostinger gateway defects or an API outage. Two failures on the same tier mean descend the ladder.",
+    "steps": [
+      "Read the Hostinger run journal (hostinger-run-journal.json in Drive) for a known defect and the tier to start at.",
+      "Tier 1 MCP gateway failed twice: Tier 2, direct REST to developers.hostinger.com with the vault token.",
+      "Tier 2 failed: Tier 3, do the step by hand in hPanel (https://hpanel.hostinger.com) in Trevor's logged-in browser.",
+      "Tier 3 unavailable: Tier 4 LMCP saved browser session; then Tier 5 SSH/curl to the VPS from the Mac.",
+      "Append what worked to the run journal so the next attempt starts there."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-021",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "Project fails to start with \"port is already allocated\" or \"bind: address already in use\" for 80, 443 or 4180.",
+    "likely_cause": "Another project on the VPS (usually the MCP gateway's reverse proxy) already uses that port.",
+    "steps": [
+      "Remove COMPOSE_PROFILES=tls from the project environment so Caddy does not start.",
+      "If 4180 clashes, set OAUTH2_PROXY_BIND_PORT to a free port such as 4181 in the project environment.",
+      "Add a site for admin.ntxpllc.com to the existing proxy pointing at 127.0.0.1:<that port> (DEPLOY.md step d, option 1).",
+      "Restart the project."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-022",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "A fix was merged on GitHub but the live console still behaves the old way.",
+    "likely_cause": "Update/restart reuses the already-built image; the app image is only rebuilt when the project is re-created.",
+    "steps": [
+      "Trevor: re-run VPS_createNewProjectV1 with the same project name and the GitHub repo URL (DEPLOY.md step d) so Docker rebuilds from the latest commit.",
+      "Hard-refresh the browser (Ctrl+Shift+R) to drop cached web files.",
+      "Confirm the change, then log the deploy in the run journal."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-023",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "The Hostinger connector stops responding in the middle of a deploy or restart.",
+    "likely_cause": "The MCP gateway runs on the same VPS. Restarting shared proxy or Docker services drops the connector mid-call.",
+    "steps": [
+      "Wait 2 minutes, then retry the read call (VPS_getProjectListV1).",
+      "If it stays down, continue in hPanel by hand (tier ladder step 3).",
+      "Before future restarts, warn that the connector will drop."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-024",
+    "workflow": "Deploy, VPS and DNS",
+    "symptom": "After a DNS change, company email, the website or mcp.ntxpllc.cloud stopped working.",
+    "likely_cause": "A DNS update overwrote or removed records it should not have (usually overwrite set to true).",
+    "steps": [
+      "Call Trevor immediately; mail outages are silent.",
+      "Trevor: list snapshots (DNS_getDNSSnapshotListV1 for ntxpllc.com), inspect the one taken before the change (DNS_getDNSSnapshotV1), then restore it (DNS_restoreDNSSnapshotV1).",
+      "Verify MX and the website resolve again, then redo only the admin A record with overwrite false.",
+      "Tell Alison what broke and for how long."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-025",
+    "workflow": "Contacts sync",
+    "symptom": "Contacts labelled for sharing never show up in the Shared Contacts list.",
+    "likely_cause": "The Google Contacts label is not spelled exactly \"★ NTXP Shared\" (star, space, NTXP, space, Shared), or the label does not exist in that user's Contacts.",
+    "steps": [
+      "Open https://contacts.google.com as that user and look at the labels in the left menu.",
+      "If missing, create a label and copy-paste the name from this entry: ★ NTXP Shared.",
+      "If a similar label exists (no star, extra space), rename it to the exact name.",
+      "In the console, open Shared Contacts and click Sync now (POST /api/contacts/sync)."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 1,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-026",
+    "workflow": "Contacts sync",
+    "symptom": "The same person appears two or more times in Shared Contacts after an import or sync.",
+    "likely_cause": "The duplicate records have different emails or phone formats, so the de-duplication did not match them; or an import was committed without reviewing the duplicates list.",
+    "steps": [
+      "Always import with Preview first (commit=false) and read the Duplicates list before committing.",
+      "For existing duplicates: open each, copy any missing phone/email into the best record with Edit.",
+      "Select the extra records and choose Delete. Delete is Tier 3: the console shows a summary and waits for an owner to approve.",
+      "Approve within 15 minutes or the request expires and must be restaged."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-027",
+    "workflow": "Contacts sync",
+    "symptom": "Import says the file format was not detected, or the preview shows names in the wrong columns.",
+    "likely_cause": "The file is not one of the supported layouts (vCard .vcf, Google CSV, Outlook CSV, simple CSV with a header row) or it was saved in a non-UTF-8 encoding.",
+    "steps": [
+      "Re-export from the source: Google Contacts > Export > Google CSV, or Outlook > Export > CSV, or the phone's .vcf.",
+      "If it is a spreadsheet, save as CSV UTF-8 with a header row (Name, Email, Phone, Company, Title).",
+      "In the import dialog, pick the format by hand instead of Auto.",
+      "Preview again before committing."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 1,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-028",
+    "workflow": "Contacts sync",
+    "symptom": "Sync reports errors for one user, or a user's personal contacts never appear.",
+    "likely_cause": "The contacts scope is missing from domain-wide delegation, or the user's account is suspended.",
+    "steps": [
+      "Check the Status card: contacts must be \"ok\".",
+      "If it says error, follow RB-002 to add the contacts scopes.",
+      "If only one user fails, check the account in Admin console (RB-005)."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-029",
+    "workflow": "Contacts sync",
+    "symptom": "A bulk action (delete, unshare many) shows \"needs approval\" and nothing happens.",
+    "likely_cause": "Working as designed: deletes and bulk actions are Tier 3 and wait for an owner's approval.",
+    "steps": [
+      "Read the summary. It names how many contacts and which action.",
+      "If correct, an owner clicks Approve on the same screen. Approval is bound to that exact list.",
+      "If the list changes, the approval is void; stage it again.",
+      "Staged changes expire after 15 minutes."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-030",
+    "workflow": "Employee analytics",
+    "symptom": "A person shows no data (blank row or zero activity) on the analytics page.",
+    "likely_cause": "The person's account is new, suspended or unlicensed; they are not assigned to any project in NTXP_PROJECT_ASSIGNMENTS; or the Google sources are unconfigured.",
+    "steps": [
+      "Check the Status card. If gmail/directory are not \"ok\", fix that first (RB-007).",
+      "Confirm the person's account is active in Admin console > Directory > Users.",
+      "Ask Trevor whether the person is listed in NTXP_PROJECT_ASSIGNMENTS for their jobs.",
+      "Click Run analysis now and wait for the next cycle.",
+      "No data is never a reason to flag the person."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-031",
+    "workflow": "Employee analytics",
+    "symptom": "A flag looks wrong (for example \"slow responses\" while the person was on vacation, at a job site, or out sick).",
+    "likely_cause": "The cross-check did not find the explanation: no calendar out-of-office, no JobTread time entry, or the reason was discussed by phone.",
+    "steps": [
+      "Open the flag and read Cross-check: which sources were checked and what was found.",
+      "If you know the reason, choose Dismiss and write the reason in the note (for example: PTO 10/6-10/8 approved by Trevor).",
+      "Ask the person to use Google Calendar out-of-office for future absences so the system explains them automatically.",
+      "Flags are proposals for the owners. No flag is ever used for discipline without owner review."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 1,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-032",
+    "workflow": "Employee analytics",
+    "symptom": "A level 2 escalation shows as sent but the owner never received the email.",
+    "likely_cause": "NTXP_ALERT_SENDER is empty or not a real mailbox, the gmail.send scope is missing, or the message went to spam.",
+    "steps": [
+      "Search the owner's Spam and All Mail for \"NTXP Alert\".",
+      "Check that NTXP_ALERT_SENDER is an active @ntxpllc.com mailbox (for example alerts@ntxpllc.com).",
+      "Check the delegation scopes include gmail.send (RB-002).",
+      "Mark a found message as Not spam so future alerts land in the inbox."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-033",
+    "workflow": "Employee analytics",
+    "symptom": "A level 3 SMS escalation failed or never arrived; Status shows quo as error or unconfigured.",
+    "likely_cause": "QUO_API_KEY is missing or revoked, QUO_FROM_NUMBER is not a Quo number on the account, or NTXP_ALISON_SMS / NTXP_TREVOR_SMS is not in +1XXXXXXXXXX form.",
+    "steps": [
+      "Check the Status card for quo.",
+      "Confirm the phone variables look like +12145550123 (plus sign, country code, no spaces or dashes).",
+      "In the Quo app, confirm QUO_FROM_NUMBER is one of the company's inboxes and the API key is active.",
+      "Until fixed, call the owner directly for any level 3 item."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-034",
+    "workflow": "Employee analytics",
+    "symptom": "A level 3 item happened overnight but the SMS arrived only in the morning.",
+    "likely_cause": "Quiet hours (9 pm to 6 am Central). Non-critical texts are held until 6 am; only critical urgency goes out overnight.",
+    "steps": [
+      "This is expected behaviour. Check the flag's urgency: only \"critical\" overrides quiet hours.",
+      "If an owner wants a category treated as critical, that is an owner decision; record it and tell Trevor.",
+      "Do not change the quiet-hours setting yourself."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-035",
+    "workflow": "Employee analytics",
+    "symptom": "An emotional-volatility score appears for a customer, vendor or other non-NTXP person, or appears anywhere outside the owner console.",
+    "likely_cause": "Defect. Volatility is computed only for NTXP-to-NTXP internal messages and is internal-only.",
+    "steps": [
+      "Stop sharing or exporting that report.",
+      "Screenshot the screen (crop out message text) and send it to Trevor.",
+      "Trevor disables analytics runs until fixed and deletes the stray value.",
+      "Tell Alison if the value left the console."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-036",
+    "workflow": "Employee analytics",
+    "symptom": "Dashboard tiles never update until the page is reloaded.",
+    "likely_cause": "The live update stream (/api/analytics/stream) is being buffered by a proxy in front of oauth2-proxy.",
+    "steps": [
+      "Reload the page; numbers will be current at load.",
+      "Trevor: if an existing proxy fronts the console, turn off response buffering for admin.ntxpllc.com (nginx: proxy_buffering off; Caddy: flush_interval -1).",
+      "Confirm the tiles move during the next Run analysis now."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-037",
+    "workflow": "Employee analytics",
+    "symptom": "The console shows sample names or a \"Demo\" badge in production.",
+    "likely_cause": "NTXP_ADMIN_DEMO is set to true in the VPS project environment.",
+    "steps": [
+      "In hPanel > Docker Manager > ntxp-admin > Environment, clear NTXP_ADMIN_DEMO (or set it to false).",
+      "Restart the project.",
+      "Never act on, export or forward demo numbers."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-038",
+    "workflow": "Employee analytics",
+    "symptom": "An employee asks whether they are being monitored, objects to monitoring, or files a complaint about a flag.",
+    "likely_cause": "Normal question; the monitoring notice may not have reached them or they want to talk about a specific decision.",
+    "steps": [
+      "Do not discuss flags, scores or another person's data with the employee.",
+      "Give them a copy of the signed Employee Monitoring Notice (docs/EMPLOYEE_MONITORING_NOTICE.md) if they have not received one.",
+      "Pass the question to Alison the same day. Legal or HR responses come from the owner, with counsel if needed."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-039",
+    "workflow": "FormFlow",
+    "symptom": "FormFlow finds no fields (or too few) in a blank form.",
+    "likely_cause": "The PDF is a scan or flattened print with no fillable (AcroForm) fields, so only visual detection can find blanks.",
+    "steps": [
+      "Run: python scripts/formflow_detect_fields.py --form <file>.pdf --output-json fields.json and check the count.",
+      "If 0 AcroForm fields, ask the sender for a fillable PDF; agencies often have one on their website.",
+      "Otherwise let FormFlow use overlay mode and review every field in the approval GUI (expect more red Manual fields).",
+      "Log the form name in the Learning tab as gap_found so it becomes a prewired workflow."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-040",
+    "workflow": "FormFlow",
+    "symptom": "The filled PDF opens with empty boxes even though the approval screen showed values.",
+    "likely_cause": "The viewer is not regenerating field appearances (common in Preview on Mac or browser viewers), or the form uses XFA.",
+    "steps": [
+      "Open the file in Adobe Acrobat Reader; values usually appear there.",
+      "If still empty, re-run formflow_fill_pdf.py with overlay mode so values are drawn on the page.",
+      "If the form is XFA (Acrobat says 'Please wait...' or 'dynamic form'), request a standard PDF from the agency or print to PDF first."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-041",
+    "workflow": "FormFlow",
+    "symptom": "Signature step stops with \"needs_circumstance\" or \"signer not allowed\".",
+    "likely_cause": "Trevor was named as signer without a stated circumstance, or a name other than Alison Hopkins or Trevor Hopkins was entered.",
+    "steps": [
+      "Default: change the signer to Alison Hopkins (designated signatory).",
+      "If Alison truly cannot sign (for example travelling and the deadline is today), Trevor may sign: type the circumstance in plain words so it is recorded.",
+      "No one else can sign for NTXP. Do not type another name."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-042",
+    "workflow": "FormFlow",
+    "symptom": "A signature that was approved is now refused with \"approval void\" or digest mismatch.",
+    "likely_cause": "A field or the file changed after approval. Approval is bound to the exact file (hash), signer and fields.",
+    "steps": [
+      "This is a safety feature. Review the changed form again in the approval GUI.",
+      "Request a new approval for the new version.",
+      "Do not edit the form after approval; make all edits first, then approve."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-043",
+    "workflow": "FormFlow",
+    "symptom": "A form came out with an old address (405 S Elm St Ste 203), an old phone, or the wrong owner/contact name.",
+    "likely_cause": "A Drive scan or old KB row offered a retired value. Tier 1 identity rules always win: Owner Alison Hopkins, Operations contact Trevor Hopkins, 101 South Locust St Ste 605, Denton, TX 76201, phone 469-248-7431.",
+    "steps": [
+      "Do not send the form. Correct the field in the approval GUI to the Tier 1 value.",
+      "In the FormFlow KB sheet, mark the old value as retired: in the alternates column so it is blocked in future.",
+      "If an agency's own records show the retired value and they require a change form, that is an owner decision.",
+      "Log the correction in the Learning tab."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-044",
+    "workflow": "FormFlow",
+    "symptom": "A W-9 shows the LLC box checked or a letter in the LLC tax-classification code.",
+    "likely_cause": "The form was filled outside the W-9 workflow or a manual edit overrode it.",
+    "steps": [
+      "Line 3a must have only S corporation checked. Uncheck LLC and clear the LLC code box.",
+      "Re-run the fill through the W-9 prewired workflow, which fixes these values.",
+      "Get a fresh signature approval (RB-042) before the W-9 leaves NTXP."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-045",
+    "workflow": "Model Council",
+    "symptom": "Work is paused with a Council \"gate\" message showing options A/B/C.",
+    "likely_cause": "The Council needs a human decision: a methodology, classification, privacy or payment choice, or spend hit 75% of a ceiling.",
+    "steps": [
+      "Read the gate text; it includes a recommendation.",
+      "Methodology, classification or tool choices: Trevor decides. Payment or anything money-related: Alison decides.",
+      "Reply with the chosen option. Agents never pick an option for the owners.",
+      "Open gates are also emailed and texted automatically within a minute."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-046",
+    "workflow": "Model Council",
+    "symptom": "Council or analytics refuse to run: \"cost ceiling reached\" ($2 per task, $15 per day, $150 per month).",
+    "likely_cause": "Spend hit a ceiling. The live values are in the Council sheet's 01 Config tab.",
+    "steps": [
+      "Wait for the daily reset (midnight Central) for the day ceiling.",
+      "Deterministic (Tier 0) analytics keep running; only model steps pause.",
+      "Raising a ceiling spends money and is Alison's decision. Send her the gate text and the cost summary."
+    ],
+    "escalate_to": "Alison (owner)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-047",
+    "workflow": "Model Council",
+    "symptom": "A Council provider is down (errors or timeouts from one seat) or fewer than 3 providers are available.",
+    "likely_cause": "Provider outage, expired API key (ANTHROPIC_API_KEY, XAI_API_KEY or others in the vault), or NTXP_COUNCIL_URL unreachable.",
+    "steps": [
+      "Check the provider's status page and the Council sheet's 31 Environments tab.",
+      "Retry once after 10 minutes.",
+      "If the key is expired, Trevor rotates it in the vault and the VPS environment.",
+      "Councils need at least 3 distinct providers. If fewer are up, wait; do not replace them with DeepSeek or GLM for personnel or owner content."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-048",
+    "workflow": "JobTread and Plaud adapters",
+    "symptom": "Status shows jobtread as error, or JobTread-based tiles (daily reports, PO/invoice integrity) are empty.",
+    "likely_cause": "JOBTREAD_GRANT_KEY is missing, expired or was revoked in JobTread.",
+    "steps": [
+      "In JobTread, Settings > API, check that the NTXP Admin Console grant is still active.",
+      "If not, Trevor creates a new grant key, saves it in the vault, and updates JOBTREAD_GRANT_KEY in the VPS environment.",
+      "Restart the project and click Run analysis now."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-049",
+    "workflow": "JobTread and Plaud adapters",
+    "symptom": "JobTread data shows up, but people are matched to the wrong jobs or a project is missing from reports.",
+    "likely_cause": "NTXP_PROJECT_ASSIGNMENTS does not list the job or the person, or the JobTread job name changed.",
+    "steps": [
+      "Ask Trevor for the current project assignment list (job name and the people on it).",
+      "Trevor updates NTXP_PROJECT_ASSIGNMENTS in the VPS environment (each person's email with their projects and Drive folder IDs); project names must match JobTread exactly.",
+      "Restart and rerun the analysis. Dismiss flags caused by the wrong assignment with a note."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-050",
+    "workflow": "JobTread and Plaud adapters",
+    "symptom": "Plaud recordings or transcripts are missing; Status shows plaud as error or unconfigured.",
+    "likely_cause": "PLAUD_API_KEY is missing or expired, or the recording was never synced from the device to the Plaud cloud.",
+    "steps": [
+      "On the Plaud app, confirm the recording shows as synced and transcribed.",
+      "If it is synced but missing in the console, Trevor checks PLAUD_API_KEY in the vault and VPS environment.",
+      "Recordings are confidential personnel content; never forward transcripts outside the owners."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-051",
+    "workflow": "Git push in cloud sessions",
+    "symptom": "git push from a Claude Code cloud session fails with 403 from the proxy or \"permission denied\".",
+    "likely_cause": "The session's GitHub access is read-only for that repository, or the GitHub App is not installed for the account.",
+    "steps": [
+      "In the session, ask Claude to run check_repo_access for the repository and read the push verdict.",
+      "If refused, Trevor reconnects GitHub at claude.ai > Settings > Connectors or installs the Claude GitHub App on the repo.",
+      "Retry the push once access shows ok. Retrying before that does not help."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-052",
+    "workflow": "Git push in cloud sessions",
+    "symptom": "Push rejected: \"non-fast-forward\", \"fetch first\" or \"protected branch\".",
+    "likely_cause": "Someone pushed to the branch since the session started, or the session tried to push directly to the default branch.",
+    "steps": [
+      "Ask Claude to push to a new feature branch and open a pull request instead of pushing to master/main.",
+      "For non-fast-forward on a feature branch: fetch, rebase on the remote branch, rerun tests, push again.",
+      "Never force-push to the default branch."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 2,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-053",
+    "workflow": "Git push in cloud sessions",
+    "symptom": "Push blocked by GitHub secret scanning (\"push protection: secret detected\").",
+    "likely_cause": "A key or token was committed. The repository is public.",
+    "steps": [
+      "Do not bypass the block.",
+      "Remove the secret from the commit (amend or rewrite the unpushed commits) and push again.",
+      "Treat the secret as exposed anyway and rotate it (RB-009).",
+      "Keys belong only in the NTXP vault and VPS environment variables."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 3,
+    "updated": "2026-10-09"
+  },
+  {
+    "id": "RB-054",
+    "workflow": "Git push in cloud sessions",
+    "symptom": "Push or clone stalls, then fails with \"RPC failed\", \"connection reset\" or \"unexpected disconnect\".",
+    "likely_cause": "The cloud session's outbound proxy cut off a large transfer.",
+    "steps": [
+      "Retry once.",
+      "Ask Claude to check the agent proxy status page described in /root/.ccr/README.md and apply the fix it lists.",
+      "Avoid committing large binaries (images, PDFs); the .gitignore already excludes most."
+    ],
+    "escalate_to": "Trevor (operations)",
+    "tier": 0,
+    "updated": "2026-10-09"
+  }
+]

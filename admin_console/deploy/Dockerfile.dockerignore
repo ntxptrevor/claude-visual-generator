@@ -1,0 +1,14 @@
+# BuildKit reads this file for admin_console/deploy/Dockerfile (context = repo root).
+# Keeps secrets and junk out of the image layers.
+**/.env
+**/.env.*
+!**/.env.example
+**/__pycache__
+**/*.pyc
+**/*sa-key*.json
+**/*service-account*.json
+**/ntxp-workspace-sa.json
+.git
+.config
+figures
+slide_image_gen

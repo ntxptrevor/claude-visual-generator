@@ -1,0 +1,17 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:Grace Lin
+N:Lin;Grace;;Ms.;
+ORG:Surety Partners (example)
+TITLE:Account Executive
+EMAIL;TYPE="work,pref":glin@suretypartners.example.com
+TEL;VALUE=uri;TYPE="voice,work":tel:+1-972-555-0110
+ADR;TYPE=work;LABEL="5800 Granite Pkwy\nPlano, TX":;;5800 Granite Pkwy;Plano;TX;75024;USA
+CATEGORIES:Surety
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:Kevin Chen
+EMAIL:kchen@studioforma.example.com
+TEL;TYPE=cell:817-555-0177
+END:VCARD
