@@ -1,0 +1,77 @@
+# NTXP Admin Console on the NTXP Hostinger VPS (srv1243476), behind the existing
+# Traefik proxy from the n8n template (network n8n_default, cert resolver mytlschallenge).
+# Hostinger project name: ntxp-admin. Inline this file as the project content.
+#
+# Only oauth2-proxy joins n8n_default. The app sits on a private network so no other
+# container can reach it or forge the X-Forwarded-Email header it trusts.
+#
+# Project environment: OAUTH2_PROXY_CLIENT_ID, OAUTH2_PROXY_CLIENT_SECRET,
+# OAUTH2_PROXY_COOKIE_SECRET, NTXP_ADMIN_DEMO, and the NTXP_* / provider keys from
+# .env.example as they become available.
+
+services:
+  app:
+    # The VPS Docker Manager cannot build images (see the Hostinger run journal).
+    # Build admin_console/deploy/Dockerfile elsewhere, with dependencies installed
+    # from pre-downloaded wheels, push it to a registry the VPS can pull, and set
+    # NTXP_ADMIN_IMAGE in the project environment.
+    image: ${NTXP_ADMIN_IMAGE:?set NTXP_ADMIN_IMAGE to the prebuilt admin console image}
+    pull_policy: missing
+    container_name: ntxp-admin-app
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      TZ: "America/Chicago"
+      NTXP_ADMIN_DB_PATH: "/data/admin_intelligence.json"
+    volumes:
+      - admin_data:/data
+    networks: [private]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: ntxp-admin-auth
+    depends_on: [app]
+    restart: unless-stopped
+    env_file: [.env]
+    command:
+      - --provider=google
+      - --http-address=0.0.0.0:4180
+      - --upstream=http://ntxp-admin-app:8080
+      - --redirect-url=https://admin.ntxpllc.com/oauth2/callback
+      - --authenticated-emails-file=/etc/oauth2-proxy/emails.txt
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --reverse-proxy=true
+      - --cookie-secure=true
+      - --cookie-samesite=lax
+      - --cookie-name=_ntxp_admin
+      - --cookie-expire=12h
+      - --prompt=select_account
+      - --custom-sign-in-logo=-
+    configs:
+      - source: owner_emails
+        target: /etc/oauth2-proxy/emails.txt
+    networks: [private, web]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "n8n_default"
+      traefik.http.routers.ntxpadmin.rule: "Host(`admin.ntxpllc.com`)"
+      traefik.http.routers.ntxpadmin.entrypoints: "web,websecure"
+      traefik.http.routers.ntxpadmin.tls: "true"
+      traefik.http.routers.ntxpadmin.tls.certresolver: "mytlschallenge"
+      traefik.http.services.ntxpadmin.loadbalancer.server.port: "4180"
+
+configs:
+  owner_emails:
+    content: |
+      trevor@ntxpllc.com
+      alison@ntxpllc.com
+
+volumes:
+  admin_data:
+
+networks:
+  private: {}
+  web:
+    external: true
+    name: n8n_default
