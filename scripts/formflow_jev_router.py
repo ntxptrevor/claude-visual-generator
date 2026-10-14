@@ -51,6 +51,7 @@ FORM_TYPE_PATTERNS = {
     "safety_checklist": r"(?i)(Safety\s+Checklist|Safety\s+Form|JHA|JSA)",
     "punch_list": r"(?i)(Punch\s*List|Deficiency\s+List)",
     "inspection_request": r"(?i)(Inspection\s+Request|Request\s+for\s+Inspection)",
+    "ciq": r"(?i)(\bCIQ\b|Conflict\s+of\s+Interest\s+Questionnaire)",
 }
 
 SAVE_LOCATION_MAP = {
@@ -72,6 +73,7 @@ SAVE_LOCATION_MAP = {
     "safety_checklist": "11",
     "punch_list": "10.1",
     "inspection_request": "11",
+    "ciq": "!Active Bids",
 }
 
 CONFIDENTIAL_FORM_TYPES = {"w9", "w4", "i9", "credit_application", "nda"}

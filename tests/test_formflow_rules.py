@@ -39,8 +39,9 @@ def test_w9_answers_enforce_tier1_over_stale_kb():
 def test_w9_checks_s_corp_only_and_never_the_llc_box():
     a = by_field(reg.build_acroform_answers("w9", STALE_KB)["answers"])
     assert a["c1_1[2]"]["field_value"] == "/3"
-    assert "c1_1[5]" not in a and "f1_03[0]" not in a
-    assert not any(k.startswith("c1_1[") and k != "c1_1[2]" for k in a)
+    for k in ("c1_1[5]", "f1_03[0]"):
+        assert a[k].get("clear") is True and "field_value" not in a[k]
+    assert all(a[k].get("clear") for k in a if k.startswith("c1_1[") and k != "c1_1[2]")
 
 
 def test_w9_missing_kb_values_are_reported_as_manual():
@@ -109,6 +110,31 @@ def _w9_like_pdf(path):
         form.checkbox(name=name, x=400, y=700 - i * 40, size=12)
     c.showPage()
     c.save()
+    _use_w9_checkbox_states(path)
+
+
+def _use_w9_checkbox_states(path):
+    """Rename each checkbox's on-state to the IRS W-9's numbered state (c1_1[2] -> /3)."""
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject
+    w = PdfWriter(clone_from=PdfReader(str(path)))
+    for a in w.pages[0]["/Annots"]:
+        a = a.get_object()
+        name = str(a.get("/T", ""))
+        if not name.startswith("c1_1["):
+            continue
+        state = NameObject("/" + str(int(name[5:-1]) + 1))
+        for key in ("/N", "/D"):
+            group = a["/AP"].get(key)
+            if group is None:
+                continue
+            group = group.get_object()
+            for k in [k for k in group.keys() if k != "/Off"]:
+                group[state] = group[k]
+                del group[k]
+        a[NameObject("/AS")] = NameObject("/Off")
+    with open(path, "wb") as f:
+        w.write(f)
 
 
 def test_end_to_end_w9_fill(tmp_path):
@@ -147,3 +173,64 @@ def test_drive_scan_never_ingests_tier1_identity_fields():
             "City: Denton State: TX Zip Code: 76201\nPhone number: (214) 555-0000")
     fields = {f["field_name"] for f in ds.extract_fields_from_text(text)}
     assert not fields & set(sig.TIER1_FIELD_OVERRIDES)
+
+
+def _prefilled_llc_w9(path):
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject
+    tmp = path.with_suffix(".blank.pdf")
+    _w9_like_pdf(tmp)
+    w = PdfWriter(clone_from=PdfReader(str(tmp)))
+    for a in w.pages[0]["/Annots"]:
+        a = a.get_object()
+        if a.get("/T") == "c1_1[5]":
+            on = [k for k in a["/AP"]["/N"].keys() if k != "/Off"][0]
+            a[NameObject("/AS")] = NameObject(on)
+            a[NameObject("/V")] = NameObject(on)
+    with open(path, "wb") as f:
+        w.write(f)
+
+
+def test_prefilled_llc_box_is_cleared(tmp_path):
+    blank, out = tmp_path / "pre.pdf", tmp_path / "out.pdf"
+    _prefilled_llc_w9(blank)
+    from pypdf import PdfReader
+    before = {k.split(".")[-1]: v.get("/V") for k, v in PdfReader(str(blank)).get_fields().items()}
+    assert before["c1_1[5]"] not in (None, "/Off")
+    fill.fill_acroform(str(blank), reg.build_acroform_answers("w9", STALE_KB)["answers"], str(out))
+    after = {k.split(".")[-1]: v.get("/V") for k, v in PdfReader(str(out)).get_fields().items()}
+    assert after["c1_1[5]"] in (None, "/Off")
+    assert after["c1_1[2]"] not in (None, "/Off")
+
+
+def test_unrecognized_checkbox_value_is_not_checked(tmp_path):
+    blank, out = tmp_path / "w9.pdf", tmp_path / "out.pdf"
+    _w9_like_pdf(blank)
+    fill.fill_acroform(str(blank), [{"field_name": "c1_1[0]", "field_value": "/6"}], str(out))
+    from pypdf import PdfReader
+    fields = {k.split(".")[-1]: v.get("/V") for k, v in PdfReader(str(out)).get_fields().items()}
+    assert fields["c1_1[0]"] in (None, "/Off")
+
+
+def test_label_forms_get_tier1_values_and_never_prices():
+    detected = [
+        {"field_name": "company", "field_name_raw": "Bidder"},
+        {"field_name": "addr", "field_name_raw": "Address"},
+        {"field_name": "base", "field_name_raw": "Base Bid"},
+        {"field_name": "project", "field_name_raw": "Project Name"},
+    ]
+    kb = dict(STALE_KB, bid_amount="$1,234,567", project_name="Ralls MNT")
+    out = reg.build_answers("bid_form", kb, detected)
+    a = {x["field_name"]: x for x in out["answers"]}
+    assert a["company"]["field_value"] == "NTXP LLC"
+    assert "base" not in a
+    assert any(m["field_name"] == "base" and "price" in m["reason"] for m in out["manual"])
+    vr = reg.build_answers("vendor_registration", STALE_KB, [{"field_name": "a", "field_name_raw": "Address"},
+                                                             {"field_name": "p", "field_name_raw": "Phone"}])
+    v = {x["field_name"]: x["field_value"] for x in vr["answers"]}
+    assert v == {"a": "101 South Locust St Ste 605", "p": "469-248-7431"}
+
+
+def test_label_forms_require_detected_fields():
+    with pytest.raises(ValueError):
+        reg.build_answers("vendor_registration", STALE_KB)

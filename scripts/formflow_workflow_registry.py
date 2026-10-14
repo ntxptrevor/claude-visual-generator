@@ -82,6 +82,9 @@ WORKFLOWS = {
         # only. Never check the LLC box (c1_1[5]) and leave the LLC code (f1_03) blank.
         "fixed_values": {"c1_1[2]": "/3"},
         "never_fill": ["c1_1[5]", "f1_03[0]"],
+        # Cleared on every fill, so a pre-filled blank can't keep another selection.
+        "clear_fields": ["c1_1[0]", "c1_1[1]", "c1_1[3]", "c1_1[4]", "c1_1[5]",
+                         "c1_1[6]", "f1_03[0]", "f1_04[0]"],
         "signature_placements": [
             {"page": 1, "kind": "signature", "x": 150, "y": 196, "width": 220},
             {"page": 1, "kind": "date", "x": 410, "y": 196},
@@ -316,6 +319,27 @@ WORKFLOWS = {
         "jev_tier": 0,
         "is_confidential": False
     },
+    "ciq": {
+        "form_type": "ciq",
+        "name": "Conflict of Interest Questionnaire (Form CIQ)",
+        "category": "rfp",
+        "patterns": [r"(?i)(\bCIQ\b|Conflict\s+of\s+Interest\s+Questionnaire)"],
+        "field_map": {
+            "Name of vendor": "company_name",
+        },
+        # Texas Ethics Commission Form CIQ (H.B. 23). Section 1 only; sections 2-7
+        # describe conflicts with local officials and are never auto-filled.
+        "overlay_map": {
+            "vendor_name": {"kb_field": "company_name", "page": 1, "x1": 56, "y1": 556},
+        },
+        "owner_must_confirm": [
+            "No employment, business or family relationship with a local government officer "
+            "of this entity (sections 3-6 left blank). If one exists, the owner completes them.",
+        ],
+        "save_location": "!Active Bids",
+        "jev_tier": 0,
+        "is_confidential": False
+    },
     "daily_report": {
         "form_type": "daily_report",
         "name": "Daily Report / Field Report",
@@ -487,7 +511,86 @@ def build_acroform_answers(form_type, kb):
         if pdf_field not in never:
             answers.append({"field_name": pdf_field, "field_value": value,
                             "kb_field": None, "source": "tier1"})
+    for pdf_field in wf.get("clear_fields", []):
+        answers.append({"field_name": pdf_field, "clear": True, "source": "tier1"})
     return {"form_type": form_type, "answers": answers, "manual": manual}
+
+
+# Prices and money commitments are never auto-filled; the owner enters them.
+NEVER_AUTOFILL_KB_FIELDS = {"bid_amount", "waiver_amount", "bid_bond_info",
+                            "unit_price", "alternate_price", "bank_account"}
+PRICE_LABEL_RE = re.compile(
+    r"(?i)(\bbid\b.*\b(amount|price|total|sum)\b|base\s*bid|lump\s*sum|unit\s*price|"
+    r"\balternate\b|\bprice\b|\bcost\b|\bfee\b|\btotal\b|\$|amount\s*of\s*(bid|proposal)|"
+    r"grand\s*total|bond\s*amount|percent(age)?\s*of\s*bid)")
+SIGNATURE_LABEL_RE = re.compile(r"(?i)(signature|sign\s*here|^\s*signed\b|initials?)")
+
+
+def build_label_answers(form_type, detected_fields, kb):
+    """Build answers for forms without a fixed layout, from detect_fields output.
+
+    Labels are matched with the workflow's field_map; values come from
+    resolve_kb_values, so Tier 1 overrides apply. Prices go to manual.
+    """
+    values, sources = resolve_kb_values(kb)
+    answers, manual = [], []
+    for f in detected_fields:
+        label = f.get("field_name_raw") or f.get("label") or f.get("field_name", "")
+        if PRICE_LABEL_RE.search(label):
+            manual.append({"field_name": f.get("field_name"), "label": label,
+                           "reason": "price or money commitment - owner enters it"})
+            continue
+        if SIGNATURE_LABEL_RE.search(label):
+            manual.append({"field_name": f.get("field_name"), "label": label,
+                           "reason": "signature - Tier 3 signature step only"})
+            continue
+        kb_field, confidence = map_form_field_to_kb(label, form_type=form_type)
+        if not kb_field:
+            manual.append({"field_name": f.get("field_name"), "label": label, "reason": "no KB match"})
+        elif kb_field in NEVER_AUTOFILL_KB_FIELDS:
+            manual.append({"field_name": f.get("field_name"), "label": label, "kb_field": kb_field,
+                           "reason": "price or money commitment - owner enters it"})
+        elif kb_field not in values:
+            manual.append({"field_name": f.get("field_name"), "label": label, "kb_field": kb_field,
+                           "reason": "KB has no value"})
+        else:
+            ans = {"field_name": f.get("field_name"), "field_value": values[kb_field],
+                   "kb_field": kb_field, "source": sources[kb_field], "confidence": confidence}
+            for key in ("field_name_raw", "position", "page"):
+                if key in f:
+                    ans[key] = f[key]
+            answers.append(ans)
+    return {"form_type": form_type, "answers": answers, "manual": manual}
+
+
+def build_overlay_answers(form_type, kb):
+    """Answers with fixed page positions for flat forms with a known layout (e.g. CIQ)."""
+    wf = WORKFLOWS[form_type]
+    values, sources = resolve_kb_values(kb)
+    answers, manual = [], []
+    for name, spec in wf["overlay_map"].items():
+        kb_field = spec["kb_field"]
+        if kb_field not in values:
+            manual.append({"field_name": name, "kb_field": kb_field, "reason": "KB has no value"})
+            continue
+        answers.append({"field_name": name, "field_value": values[kb_field], "kb_field": kb_field,
+                        "source": sources[kb_field], "page": spec["page"],
+                        "position": {"x1": spec["x1"], "y1": spec["y1"]}})
+    for note in wf.get("owner_must_confirm", []):
+        manual.append({"field_name": None, "reason": "owner must confirm: " + note})
+    return {"form_type": form_type, "answers": answers, "manual": manual}
+
+
+def build_answers(form_type, kb, detected_fields=None):
+    """Answers for any workflow: fixed AcroForm layout if known, else label matching."""
+    wf = WORKFLOWS.get(form_type)
+    if wf and "acroform_map" in wf:
+        return build_acroform_answers(form_type, kb)
+    if wf and "overlay_map" in wf:
+        return build_overlay_answers(form_type, kb)
+    if detected_fields is None:
+        raise ValueError(f"'{form_type}' has no fixed layout: pass detect_fields output")
+    return build_label_answers(form_type, detected_fields, kb)
 
 
 def get_confidential_workflows():
@@ -539,12 +642,18 @@ def main():
     parser.add_argument("--answers", type=str, metavar="FORM_TYPE",
                         help="Build fill_pdf answers (Tier 1 enforced) for a form type")
     parser.add_argument("--kb-json", type=str, help="KB values JSON {field_name: value}")
+    parser.add_argument("--fields-json", type=str,
+                        help="formflow_detect_fields.py output (forms without a fixed layout)")
     parser.add_argument("--output", type=str, help="Write answers JSON here")
     args = parser.parse_args()
 
     if args.answers:
         kb = json.load(open(args.kb_json)) if args.kb_json else {}
-        result = build_acroform_answers(args.answers, kb)
+        detected = None
+        if args.fields_json:
+            data = json.load(open(args.fields_json))
+            detected = data.get("fields", data) if isinstance(data, dict) else data
+        result = build_answers(args.answers, kb, detected)
         if args.output:
             json.dump(result["answers"], open(args.output, "w"), indent=2)
         print(json.dumps(result, indent=2))

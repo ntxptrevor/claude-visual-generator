@@ -100,7 +100,7 @@ GATE_TIER = 3
 SIGNATURE_FORM_TYPES = {
     "w9", "w4", "i9", "nda", "lien_waiver", "bid_form",
     "credit_application", "vendor_registration", "sam_registration",
-    "subcontractor_prequalification", "insurance_cert",
+    "subcontractor_prequalification", "insurance_cert", "ciq",
 }
 
 SIGNATURE_FIELD_PATTERNS = [

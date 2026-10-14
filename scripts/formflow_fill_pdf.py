@@ -16,6 +16,10 @@ import sys
 from pathlib import Path
 
 
+# A checkbox is checked only for an exact on-state name or one of these.
+CHECK_YES = {"yes", "true", "on", "x", "1", "checked"}
+
+
 def fill_acroform(form_path, answers, output_path):
     try:
         from pypdf import PdfReader, PdfWriter
@@ -27,11 +31,14 @@ def fill_acroform(form_path, answers, output_path):
     reader = PdfReader(form_path)
     writer = PdfWriter(clone_from=reader)
 
-    answer_map = {}
+    answer_map, clear = {}, set()
     for ans in answers:
-        answer_map[ans["field_name"]] = ans.get("field_value", "")
-        if "field_name_raw" in ans:
-            answer_map[ans["field_name_raw"]] = ans.get("field_value", "")
+        names = [ans["field_name"]] + ([ans["field_name_raw"]] if "field_name_raw" in ans else [])
+        for name in names:
+            if ans.get("clear"):
+                clear.add(name)
+            else:
+                answer_map[name] = ans.get("field_value", "")
 
     filled_count = 0
     skipped_count = 0
@@ -52,6 +59,16 @@ def fill_acroform(form_path, answers, output_path):
                     continue
                 field_name_str = str(field_name)
 
+                field_type = annot_obj.get("/FT") or parent.get("/FT")
+
+                if field_name_str in clear:
+                    if field_type == "/Btn":
+                        annot_obj[NameObject("/AS")] = NameObject("/Off")
+                        annot_obj[NameObject("/V")] = NameObject("/Off")
+                    else:
+                        text_values[field_name_str] = ""
+                    continue
+
                 value = answer_map.get(field_name_str)
                 if value is None:
                     norm = field_name_str.lower().replace(" ", "_")
@@ -61,14 +78,18 @@ def fill_acroform(form_path, answers, output_path):
                     skipped_count += 1
                     continue
 
-                field_type = annot_obj.get("/FT") or parent.get("/FT")
                 if field_type == "/Btn":
                     ap = annot_obj.get("/AP")
                     normal = ap.get_object().get("/N").get_object() if ap else {}
                     on_states = [k for k in normal.keys() if k != "/Off"]
-                    if not on_states or str(value).lower() in ("off", "false", "no", "0"):
+                    v = str(value)
+                    if v in on_states:
+                        state = v
+                    elif on_states and v.lower() in CHECK_YES:
+                        state = on_states[0]
+                    else:
+                        skipped_count += 1
                         continue
-                    state = str(value) if str(value) in on_states else on_states[0]
                     annot_obj[NameObject("/AS")] = NameObject(state)
                     annot_obj[NameObject("/V")] = NameObject(state)
                 else:
