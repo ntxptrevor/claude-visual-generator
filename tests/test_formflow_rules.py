@@ -132,3 +132,18 @@ def test_cli_writes_answers(tmp_path):
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert {a["field_name"] for a in json.loads(out.read_text())} >= {"f1_01[0]", "c1_1[2]"}
+
+
+def test_numbered_folders_always_route_inside_the_project():
+    for ft in ("safety_checklist", "inspection_request", "insurance_cert", "punch_list"):
+        loc = jev.route_save_location(ft, project_name="Ralls")["location"]
+        assert loc.startswith("!Active Projects/Ralls/"), (ft, loc)
+    assert jev.route_save_location("w9", project_name="Ralls")["location"] == "!Company Documents"
+
+
+def test_drive_scan_never_ingests_tier1_identity_fields():
+    import formflow_drive_scanner as ds
+    text = ("Insured: NTXP LLC\nStreet/Mailing Address: 405 S Elm St Ste 203\n"
+            "City: Denton State: TX Zip Code: 76201\nPhone number: (214) 555-0000")
+    fields = {f["field_name"] for f in ds.extract_fields_from_text(text)}
+    assert not fields & set(sig.TIER1_FIELD_OVERRIDES)
