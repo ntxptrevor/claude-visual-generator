@@ -33,7 +33,7 @@ import json
 import re
 import sys
 
-from formflow_signatures import SIGNATURE_FORM_TYPES
+from formflow_signatures import NTXP_IDENTITY, SIGNATURE_FORM_TYPES, TIER1_FIELD_OVERRIDES
 
 
 WORKFLOWS = {
@@ -444,6 +444,52 @@ def map_form_field_to_kb(form_field_label, form_type=None):
     return (None, 0)
 
 
+def resolve_kb_values(kb):
+    """Apply Tier 1 identity rules over KB values and add derived fields.
+
+    kb: {field_name: value}. Returns (values, sources) where sources marks
+    each field "tier1", "kb" or "derived".
+    """
+    values = {k: str(v) for k, v in (kb or {}).items() if v not in (None, "")}
+    sources = {k: "kb" for k in values}
+    for field, key in TIER1_FIELD_OVERRIDES.items():
+        values[field] = NTXP_IDENTITY[key]
+        sources[field] = "tier1"
+    digits = re.sub(r"\D", "", values.get("ein", ""))
+    if len(digits) == 9:
+        values["ein_part1"], values["ein_part2"] = digits[:2], digits[2:]
+        sources["ein_part1"] = sources["ein_part2"] = "derived"
+    return values, sources
+
+
+def build_acroform_answers(form_type, kb):
+    """Build fill_pdf answers for a workflow with a known AcroForm layout.
+
+    Tier 1 overrides win over KB values; fixed_values are always set;
+    never_fill fields are never filled. Returns {"answers", "manual"}.
+    """
+    wf = WORKFLOWS.get(form_type)
+    if not wf or "acroform_map" not in wf:
+        raise KeyError(f"No AcroForm layout for form type '{form_type}'")
+    values, sources = resolve_kb_values(kb)
+    never = set(wf.get("never_fill", []))
+    fixed = wf.get("fixed_values", {})
+    answers, manual = [], []
+    for pdf_field, kb_field in wf["acroform_map"].items():
+        if pdf_field in never or pdf_field in fixed or "*" in pdf_field:
+            continue
+        if kb_field in values:
+            answers.append({"field_name": pdf_field, "field_value": values[kb_field],
+                            "kb_field": kb_field, "source": sources[kb_field]})
+        else:
+            manual.append({"field_name": pdf_field, "kb_field": kb_field})
+    for pdf_field, value in fixed.items():
+        if pdf_field not in never:
+            answers.append({"field_name": pdf_field, "field_value": value,
+                            "kb_field": None, "source": "tier1"})
+    return {"form_type": form_type, "answers": answers, "manual": manual}
+
+
 def get_confidential_workflows():
     """Return list of workflow IDs that handle confidential content.
 
@@ -490,7 +536,19 @@ def main():
                         help="Map a form field label to KB field name")
     parser.add_argument("--form-type", type=str, default=None,
                         help="Form type context for field mapping")
+    parser.add_argument("--answers", type=str, metavar="FORM_TYPE",
+                        help="Build fill_pdf answers (Tier 1 enforced) for a form type")
+    parser.add_argument("--kb-json", type=str, help="KB values JSON {field_name: value}")
+    parser.add_argument("--output", type=str, help="Write answers JSON here")
     args = parser.parse_args()
+
+    if args.answers:
+        kb = json.load(open(args.kb_json)) if args.kb_json else {}
+        result = build_acroform_answers(args.answers, kb)
+        if args.output:
+            json.dump(result["answers"], open(args.output, "w"), indent=2)
+        print(json.dumps(result, indent=2))
+        return
 
     if args.match:
         wf = match_workflow(args.match)

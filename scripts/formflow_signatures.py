@@ -41,6 +41,30 @@ NTXP_IDENTITY = {
     "designated_signatory": "Alison Hopkins",
     "alternate_signatory": "Trevor Hopkins",
     "w9_tax_classification": "s_corp",
+    "street_address": "101 South Locust St Ste 605",
+    "city": "Denton",
+    "state": "TX",
+    "zip_code": "76201",
+    "city_state_zip": "Denton, TX 76201",
+    "phone": "469-248-7431",
+}
+
+# KB field -> NTXP_IDENTITY key. These always win over KB values, Drive scans and source documents.
+TIER1_FIELD_OVERRIDES = {
+    "company_name": "company_name",
+    "business_name": "company_name",
+    "owner_name": "owner_name",
+    "owner_title": "owner_title",
+    "contact_name": "operations_contact_name",
+    "operations_contact_name": "operations_contact_name",
+    "signer_name": "designated_signatory",
+    "signer_title": "owner_title",
+    "street_address": "street_address",
+    "city": "city",
+    "state": "state",
+    "zip_code": "zip_code",
+    "city_state_zip": "city_state_zip",
+    "phone": "phone",
 }
 
 DESIGNATED_SIGNATORY = "alison_hopkins"

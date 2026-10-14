@@ -646,6 +646,11 @@ The self-learning loop consults the Model Council for:
     │
     +── Step 3-3. KB matching and confidence scoring
     │   +── Read KB tab via mcp__Google_Sheets__get_values
+    │   +── Known layout (official W-9 etc.): ALWAYS build answers with
+    │   │   python scripts/formflow_workflow_registry.py --answers w9 \
+    │   │       --kb-json kb.json --output answers.json
+    │   │   (applies Tier 1 overrides, fixed_values, never_fill, EIN split;
+    │   │    never hand-map these fields). Fields it lists as "manual" go to the GUI.
     │   +── Fuzzy match field names (local, $0)
     │   +── For ambiguous matches: council_route to cheapest model
     │   +── For contradictions: council_run for vote
@@ -662,7 +667,8 @@ The self-learning loop consults the Model Council for:
     │   +── Present issues in GUI for resolution
     │
     +── Step 3-6. Generate filled PDF (unsigned draft)
-    │   +── python scripts/formflow_fill_pdf.py
+    │   +── python scripts/formflow_fill_pdf.py --form blank.pdf --answers answers.json \
+    │           --output filled.pdf --method acroform
     │
     +── Step 3-6b. Signature (see Signatures section; always Tier 3)
     │
