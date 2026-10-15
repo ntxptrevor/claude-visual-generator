@@ -86,6 +86,73 @@ def detect_acroform_fields(file_path):
     return fields
 
 
+BLANK_RE = re.compile(r"^\$?[_.]{3,}$")
+LABEL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 .,'/&()#-]{1,58}$")
+MAX_LABEL_WORDS = 7
+MIN_GAP = 18
+
+
+def _lines(words, tolerance=3):
+    rows = []
+    for w in sorted(words, key=lambda w: (round(w["top"]), w["x0"])):
+        if rows and abs(rows[-1][0]["top"] - w["top"]) <= tolerance:
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    return [sorted(r, key=lambda w: w["x0"]) for r in rows]
+
+
+def _field(label, page_num, x, bottom, page_h, method):
+    label = label.strip().rstrip(":").strip()
+    if not LABEL_RE.match(label) or len(label.split()) > MAX_LABEL_WORDS:
+        return None
+    return {
+        "field_name": re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_"),
+        "field_name_raw": label,
+        "field_type": "text",
+        "current_value": "",
+        "page": page_num,
+        "position": {"x1": round(x, 1), "y1": round(page_h - bottom + 1, 1)},
+        "detection_method": method,
+    }
+
+
+def _blank_fields_on_page(page, page_num):
+    """Find 'Label: ____', 'Label ____' and 'Label:' + empty gap, with the blank's position.
+
+    position is in PDF points from the bottom-left, where the value should start.
+    """
+    page_h = float(page.height)
+    found = []
+    for row in _lines(page.extract_words(keep_blank_chars=False)):
+        label_words = []
+        for i, w in enumerate(row):
+            text = w["text"]
+            nxt = row[i + 1] if i + 1 < len(row) else None
+            if BLANK_RE.match(text):
+                if label_words:
+                    x = w["x0"] + (6 if text.startswith("$") else 0)
+                    f = _field(" ".join(l["text"] for l in label_words), page_num, x,
+                               w["bottom"], page_h, "visual_underline")
+                    if f:
+                        found.append(f)
+                label_words = []
+                continue
+            label_words.append(w)
+            if not text.endswith(":"):
+                continue
+            if nxt is not None and BLANK_RE.match(nxt["text"]):
+                continue
+            gap = (nxt["x0"] - w["x1"]) if nxt is not None else page.width - w["x1"]
+            if gap >= MIN_GAP:
+                f = _field(" ".join(l["text"] for l in label_words), page_num, w["x1"] + 4,
+                           w["bottom"], page_h, "visual_label_colon")
+                if f:
+                    found.append(f)
+            label_words = []
+    return found
+
+
 def detect_visual_fields(file_path):
     try:
         import pdfplumber
@@ -98,52 +165,15 @@ def detect_visual_fields(file_path):
 
     with pdfplumber.open(file_path) as pdf:
         for page_num, page in enumerate(pdf.pages, 1):
-            text = page.extract_text() or ""
-            lines = text.split("\n")
+            for f in _blank_fields_on_page(page, page_num):
+                if f["field_name"] not in seen_names:
+                    seen_names.add(f["field_name"])
+                    fields.append(f)
 
-            for i, line in enumerate(lines):
-                line = line.strip()
+            text = page.extract_text() or ""
+            for line in (ln.strip() for ln in text.split("\n")):
                 if not line:
                     continue
-
-                label_blank = re.match(
-                    r"^([A-Za-z][A-Za-z\s/&]{2,45})[:]\s*[_\.\-]{3,}",
-                    line
-                )
-                if label_blank:
-                    label = label_blank.group(1).strip()
-                    norm = re.sub(r"\s+", "_", label).lower()
-                    if norm not in seen_names:
-                        seen_names.add(norm)
-                        fields.append({
-                            "field_name": norm,
-                            "field_name_raw": label,
-                            "field_type": "text",
-                            "current_value": "",
-                            "page": page_num,
-                            "detection_method": "visual_underline",
-                        })
-                    continue
-
-                label_colon = re.match(
-                    r"^([A-Za-z][A-Za-z\s/&]{2,45})[:]\s*$",
-                    line
-                )
-                if label_colon:
-                    label = label_colon.group(1).strip()
-                    norm = re.sub(r"\s+", "_", label).lower()
-                    if norm not in seen_names:
-                        seen_names.add(norm)
-                        fields.append({
-                            "field_name": norm,
-                            "field_name_raw": label,
-                            "field_type": "text",
-                            "current_value": "",
-                            "page": page_num,
-                            "detection_method": "visual_label_colon",
-                        })
-                    continue
-
                 checkbox = re.findall(
                     r"[\[\(\{]\s*[\]\)\}]\s*([A-Za-z][A-Za-z\s]{2,30})",
                     line

@@ -90,6 +90,28 @@ document FormFlow reads. Change them only on written direction from the owner.
 
 ---
 
+## Canonical Answers (JEV-determined)
+
+The KB Sheet's **`Canonical`** tab holds the owner-approved answers forms reuse, grouped
+as bid exhibits: **A = insurance and bonding**, **B = W-9**, **C = ACH / banking**. Every
+row records its source document, date and status (`canonical`, `conflict`, `missing`).
+
+`scripts/formflow_canonical.py` decides the correct value for a field at Tier 0 ($0):
+1. A Tier 1 rule (CLAUDE.md) always wins.
+2. Retired values (e.g. 405 S Elm St) are never chosen.
+3. Otherwise the highest-ranked source wins: owner-approved exhibit > executed third-party
+   document (broker's COI, signed W-9, bond letter) > NTXP-issued summary > KB > Drive scan.
+   Agreement between sources and recency add weight.
+4. If the top two disagree, status is `conflict`: Tier 3, the owner decides. Insurance,
+   bonding, tax-ID and banking conflicts never go to a council vote.
+
+Banking (ACH) values are confidential: masked in logs, never sent to any model, and any
+form that uses them needs Tier 3 approval. Pass canonical values to the answer builder:
+`formflow_workflow_registry.py --answers <type> --kb-json kb.json --canonical-json canonical.json`.
+Precedence when filling: Tier 1 > canonical > KB.
+
+---
+
 ## Google Workspace Access
 
 Use `scripts/google_workspace/ntxp_google_access.py` for all Google data
@@ -646,6 +668,11 @@ The self-learning loop consults the Model Council for:
     │
     +── Step 3-3. KB matching and confidence scoring
     │   +── Read KB tab via mcp__Google_Sheets__get_values
+    │   +── Known layout (official W-9 etc.): ALWAYS build answers with
+    │   │   python scripts/formflow_workflow_registry.py --answers w9 \
+    │   │       --kb-json kb.json --output answers.json
+    │   │   (applies Tier 1 overrides, fixed_values, never_fill, EIN split;
+    │   │    never hand-map these fields). Fields it lists as "manual" go to the GUI.
     │   +── Fuzzy match field names (local, $0)
     │   +── For ambiguous matches: council_route to cheapest model
     │   +── For contradictions: council_run for vote
@@ -662,7 +689,8 @@ The self-learning loop consults the Model Council for:
     │   +── Present issues in GUI for resolution
     │
     +── Step 3-6. Generate filled PDF (unsigned draft)
-    │   +── python scripts/formflow_fill_pdf.py
+    │   +── python scripts/formflow_fill_pdf.py --form blank.pdf --answers answers.json \
+    │           --output filled.pdf --method acroform
     │
     +── Step 3-6b. Signature (see Signatures section; always Tier 3)
     │

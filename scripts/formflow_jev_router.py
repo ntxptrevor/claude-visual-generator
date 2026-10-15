@@ -51,6 +51,7 @@ FORM_TYPE_PATTERNS = {
     "safety_checklist": r"(?i)(Safety\s+Checklist|Safety\s+Form|JHA|JSA)",
     "punch_list": r"(?i)(Punch\s*List|Deficiency\s+List)",
     "inspection_request": r"(?i)(Inspection\s+Request|Request\s+for\s+Inspection)",
+    "ciq": r"(?i)(\bCIQ\b|Conflict\s+of\s+Interest\s+Questionnaire)",
 }
 
 SAVE_LOCATION_MAP = {
@@ -72,6 +73,7 @@ SAVE_LOCATION_MAP = {
     "safety_checklist": "11",
     "punch_list": "10.1",
     "inspection_request": "11",
+    "ciq": "!Active Bids",
 }
 
 CONFIDENTIAL_FORM_TYPES = {"w9", "w4", "i9", "credit_application", "nda"}
@@ -270,8 +272,7 @@ def route_save_location(form_type, project_name=None):
     location = SAVE_LOCATION_MAP.get(form_type)
 
     if location:
-        if project_name and location.startswith(("2.", "4.", "5.", "6", "7.",
-                                                  "8.", "9", "10.", "11.", "12.", "13.")):
+        if project_name and location[:1].isdigit():
             full_path = f"!Active Projects/{project_name}/{location}"
         else:
             full_path = location

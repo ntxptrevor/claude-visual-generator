@@ -28,6 +28,8 @@ import json
 import re
 import sys
 
+from formflow_signatures import TIER1_FIELD_OVERRIDES
+
 
 SCAN_LOCATIONS = [
     {
@@ -279,7 +281,7 @@ def extract_fields_from_text(text, form_type=None):
         category = _group_to_category(group_name)
 
         for pattern, field_name in patterns:
-            if field_name in seen_fields:
+            if field_name in seen_fields or field_name in TIER1_FIELD_OVERRIDES:
                 continue
 
             match = re.search(pattern, text)
