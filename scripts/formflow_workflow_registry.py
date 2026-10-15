@@ -468,14 +468,18 @@ def map_form_field_to_kb(form_field_label, form_type=None):
     return (None, 0)
 
 
-def resolve_kb_values(kb):
-    """Apply Tier 1 identity rules over KB values and add derived fields.
+def resolve_kb_values(kb, canonical=None):
+    """Apply canonical answers, then Tier 1 identity rules, over KB values.
 
-    kb: {field_name: value}. Returns (values, sources) where sources marks
-    each field "tier1", "kb" or "derived".
+    kb, canonical: {field_name: value}; canonical comes from
+    formflow_canonical.canonical_values(). Precedence: Tier 1 > canonical > KB.
+    Returns (values, sources) with sources "tier1", "canonical", "kb" or "derived".
     """
     values = {k: str(v) for k, v in (kb or {}).items() if v not in (None, "")}
     sources = {k: "kb" for k in values}
+    for k, v in (canonical or {}).items():
+        if v not in (None, ""):
+            values[k], sources[k] = str(v), "canonical"
     for field, key in TIER1_FIELD_OVERRIDES.items():
         values[field] = NTXP_IDENTITY[key]
         sources[field] = "tier1"
@@ -486,7 +490,7 @@ def resolve_kb_values(kb):
     return values, sources
 
 
-def build_acroform_answers(form_type, kb):
+def build_acroform_answers(form_type, kb, canonical=None):
     """Build fill_pdf answers for a workflow with a known AcroForm layout.
 
     Tier 1 overrides win over KB values; fixed_values are always set;
@@ -495,7 +499,7 @@ def build_acroform_answers(form_type, kb):
     wf = WORKFLOWS.get(form_type)
     if not wf or "acroform_map" not in wf:
         raise KeyError(f"No AcroForm layout for form type '{form_type}'")
-    values, sources = resolve_kb_values(kb)
+    values, sources = resolve_kb_values(kb, canonical)
     never = set(wf.get("never_fill", []))
     fixed = wf.get("fixed_values", {})
     answers, manual = [], []
@@ -526,13 +530,13 @@ PRICE_LABEL_RE = re.compile(
 SIGNATURE_LABEL_RE = re.compile(r"(?i)(signature|sign\s*here|^\s*signed\b|initials?)")
 
 
-def build_label_answers(form_type, detected_fields, kb):
+def build_label_answers(form_type, detected_fields, kb, canonical=None):
     """Build answers for forms without a fixed layout, from detect_fields output.
 
     Labels are matched with the workflow's field_map; values come from
     resolve_kb_values, so Tier 1 overrides apply. Prices go to manual.
     """
-    values, sources = resolve_kb_values(kb)
+    values, sources = resolve_kb_values(kb, canonical)
     answers, manual = [], []
     for f in detected_fields:
         label = f.get("field_name_raw") or f.get("label") or f.get("field_name", "")
@@ -563,10 +567,10 @@ def build_label_answers(form_type, detected_fields, kb):
     return {"form_type": form_type, "answers": answers, "manual": manual}
 
 
-def build_overlay_answers(form_type, kb):
+def build_overlay_answers(form_type, kb, canonical=None):
     """Answers with fixed page positions for flat forms with a known layout (e.g. CIQ)."""
     wf = WORKFLOWS[form_type]
-    values, sources = resolve_kb_values(kb)
+    values, sources = resolve_kb_values(kb, canonical)
     answers, manual = [], []
     for name, spec in wf["overlay_map"].items():
         kb_field = spec["kb_field"]
@@ -581,16 +585,16 @@ def build_overlay_answers(form_type, kb):
     return {"form_type": form_type, "answers": answers, "manual": manual}
 
 
-def build_answers(form_type, kb, detected_fields=None):
+def build_answers(form_type, kb, detected_fields=None, canonical=None):
     """Answers for any workflow: fixed AcroForm layout if known, else label matching."""
     wf = WORKFLOWS.get(form_type)
     if wf and "acroform_map" in wf:
-        return build_acroform_answers(form_type, kb)
+        return build_acroform_answers(form_type, kb, canonical)
     if wf and "overlay_map" in wf:
-        return build_overlay_answers(form_type, kb)
+        return build_overlay_answers(form_type, kb, canonical)
     if detected_fields is None:
         raise ValueError(f"'{form_type}' has no fixed layout: pass detect_fields output")
-    return build_label_answers(form_type, detected_fields, kb)
+    return build_label_answers(form_type, detected_fields, kb, canonical)
 
 
 def get_confidential_workflows():
@@ -642,6 +646,8 @@ def main():
     parser.add_argument("--answers", type=str, metavar="FORM_TYPE",
                         help="Build fill_pdf answers (Tier 1 enforced) for a form type")
     parser.add_argument("--kb-json", type=str, help="KB values JSON {field_name: value}")
+    parser.add_argument("--canonical-json", type=str,
+                        help="Canonical answers {field_name: value} (formflow_canonical output)")
     parser.add_argument("--fields-json", type=str,
                         help="formflow_detect_fields.py output (forms without a fixed layout)")
     parser.add_argument("--output", type=str, help="Write answers JSON here")
@@ -653,7 +659,8 @@ def main():
         if args.fields_json:
             data = json.load(open(args.fields_json))
             detected = data.get("fields", data) if isinstance(data, dict) else data
-        result = build_answers(args.answers, kb, detected)
+        canonical = json.load(open(args.canonical_json)) if args.canonical_json else None
+        result = build_answers(args.answers, kb, detected, canonical)
         if args.output:
             json.dump(result["answers"], open(args.output, "w"), indent=2)
         print(json.dumps(result, indent=2))
