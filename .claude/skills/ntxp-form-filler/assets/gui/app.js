@@ -227,7 +227,12 @@
     return v;
   }
   function renderAllFields() { S.order.forEach(renderField); }
+  function syncBars() {
+    var tb = document.querySelector(".toolbar");
+    if (tb) document.documentElement.style.setProperty("--toolbar-h", tb.offsetHeight + "px");
+  }
   function layoutAll() {
+    syncBars();
     S.pages.forEach(sizePage);
     renderAllFields();
     S.pages.forEach(function (p) { while (p.svg.firstChild) p.svg.removeChild(p.svg.firstChild); });
@@ -918,6 +923,7 @@
     $("propClose").addEventListener("click", function () { $("proposalsDialog").close(); });
     $("propApply").addEventListener("click", applyProposals);
     document.addEventListener("keydown", globalKeys);
+    syncBars();
     $("viewer").addEventListener("scroll", function () { if (!S.reviewing) updatePageIndicator(); }, { passive: true });
     var rt = null;
     window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(layoutAll, 120); });
