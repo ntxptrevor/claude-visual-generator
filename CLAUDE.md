@@ -21,7 +21,7 @@ only on written direction from the owner.
 
 These rules are hard-coded in `scripts/formflow_signatures.py` (`NTXP_IDENTITY`),
 `scripts/formflow_workflow_registry.py` (W-9 `fixed_values`), and
-`skills/form-filler/SKILL.md` (Tier 1 Rules section). The FormFlow KB Sheet
+`.claude/skills/form-filler/SKILL.md` (Tier 1 Rules section). The FormFlow KB Sheet
 (`1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug`) carries the same values.
 
 ## Where things are

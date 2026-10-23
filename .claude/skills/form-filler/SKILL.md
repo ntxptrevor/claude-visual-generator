@@ -1,6 +1,6 @@
 ---
 name: form-filler
-description: "FormFlow v2 — Autonomous AI form filler with JEV decision routing, Model Council inference, Google Sheets KB, NTXP Drive scanning, prewired workflows (legal, RFP, accounts), self-learning loop, and guided page-by-page approval GUI. Operates without user observation; gates only for approval."
+description: "FormFlow - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Fills from the FormFlow KB and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules (owner Alison Hopkins, S corporation, 101 South Locust St Ste 605, 469-248-7431). JEV routes each step to the cheapest correct method; prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, put our info on this, canonical answers."
 skills: ntxp-model-router, ntxp-model-council, ntxp-change-gate, ntxp-folder-system
 ---
 
