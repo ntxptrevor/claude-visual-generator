@@ -10,7 +10,7 @@ CONTEXT = """NTXP session context (from .claude/hooks/session_start.py):
   designated signatory Alison (Trevor only with a stated circumstance); W-9 = S corporation box only;
   address 101 South Locust St Ste 605, Denton, TX 76201; phone 469-248-7431.
 - Agent manual: docs/AGENT_MANUAL.md. Stuck? Search docs/ADMIN_RUNBOOK.md (or /api/runbook) first.
-- JEV routing: admin_console/jev.py and scripts/formflow_jev_router.py. Tier 0 deterministic first;
+- JEV routing: admin_console/jev.py and scripts/nff_jev_router.py. Tier 0 deterministic first;
   personnel, owner, bid, pricing and credential content never go to DeepSeek or GLM.
 - Tier 3 (external sends, deletes, sharing, money, DNS/hosting, signatures, bulk) always needs explicit
   owner approval. The PreToolUse hook (.claude/hooks/tier3_guard.py) forces a prompt for these.

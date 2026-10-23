@@ -4,8 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import formflow_canonical as can  # noqa: E402
-import formflow_workflow_registry as reg  # noqa: E402
+import nff_canonical as can  # noqa: E402
+import nff_workflow_registry as reg  # noqa: E402
 
 COI = {"source_kind": "executed_doc", "source_title": "ACORD 25 #44236304", "source_date": "2026-08-03"}
 SCAN = {"source_kind": "drive_scan", "source_title": "old scan", "source_date": "2026-01-01"}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FormFlow Self-Learning Loop
+NTXP Form Filler Self-Learning Loop
 
 Monitors skill usage, seeks ways to fill DB gaps, corrects fields/types
 that commonly need human correction, and consults the Model Council.
@@ -14,14 +14,14 @@ Triggers:
   - KB contradiction (2+ sources disagree): Council vote
 
 Usage (as library):
-    from formflow_learning_loop import LearningLoop
+    from nff_learning_loop import LearningLoop
     loop = LearningLoop(kb_entries, session_entries, learning_entries)
     actions = loop.analyze()
     loop.apply_actions(actions)
 
 Usage (CLI):
-    python formflow_learning_loop.py --analyze --kb kb.json --sessions sessions.json
-    python formflow_learning_loop.py --digest --format json
+    python nff_learning_loop.py --analyze --kb kb.json --sessions sessions.json
+    python nff_learning_loop.py --digest --format json
 """
 
 import argparse
@@ -361,7 +361,7 @@ def build_learning_rows(actions):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Self-Learning Loop")
+    parser = argparse.ArgumentParser(description="NTXP Form Filler Self-Learning Loop")
     parser.add_argument("--analyze", action="store_true", help="Run full analysis")
     parser.add_argument("--digest", action="store_true", help="Generate digest")
     parser.add_argument("--kb", type=str, help="Path to KB entries JSON")
@@ -396,7 +396,7 @@ def main():
                 print(json.dumps(digest, indent=2))
             else:
                 print(f"\n{'='*50}")
-                print(f"  FormFlow Learning Loop Digest")
+                print(f"  NTXP Form Filler Learning Loop Digest")
                 print(f"{'='*50}")
                 print(f"\n  {digest['summary']}")
                 print(f"  Estimated cost: {digest['estimated_cost']}")

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-FormFlow PDF Filler — Fills detected PDF form fields with KB answers
+NTXP Form Filler PDF Filler — Fills detected PDF form fields with KB answers
 and produces a completed PDF output.
 
 Usage:
-    python scripts/formflow_fill_pdf.py \
+    python scripts/nff_fill_pdf.py \
         --form original_form.pdf \
         --answers filled_fields.json \
         --output output/filled_form.pdf
@@ -169,7 +169,7 @@ def fill_with_overlay(form_path, answers, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow PDF Filler")
+    parser = argparse.ArgumentParser(description="NTXP Form Filler PDF Filler")
     parser.add_argument("--form", required=True, help="Original PDF form")
     parser.add_argument("--answers", required=True, help="JSON file with field answers")
     parser.add_argument("--output", required=True, help="Output filled PDF path")

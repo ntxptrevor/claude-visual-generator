@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FormFlow Prewired Workflow Registry
+NTXP Form Filler Prewired Workflow Registry
 
 Manages the mapping of known form types to their field-to-KB bindings,
 save locations, and JEV tier assignments. Used by the skill to achieve
@@ -15,17 +15,17 @@ Each workflow entry contains:
   - category: Workflow category for grouping
 
 Usage (as library):
-    from formflow_workflow_registry import WorkflowRegistry
+    from nff_workflow_registry import WorkflowRegistry
     registry = WorkflowRegistry()
     wf = registry.match("W-9 Tax Form.pdf")
     field_map = wf.field_map
     save_to = wf.save_location
 
 Usage (CLI):
-    python formflow_workflow_registry.py --match "W-9 Form.pdf"
-    python formflow_workflow_registry.py --list
-    python formflow_workflow_registry.py --list --category legal
-    python formflow_workflow_registry.py --export
+    python nff_workflow_registry.py --match "W-9 Form.pdf"
+    python nff_workflow_registry.py --list
+    python nff_workflow_registry.py --list --category legal
+    python nff_workflow_registry.py --export
 """
 
 import argparse
@@ -33,7 +33,7 @@ import json
 import re
 import sys
 
-from formflow_signatures import NTXP_IDENTITY, SIGNATURE_FORM_TYPES, TIER1_FIELD_OVERRIDES
+from nff_signatures import NTXP_IDENTITY, SIGNATURE_FORM_TYPES, TIER1_FIELD_OVERRIDES
 
 
 WORKFLOWS = {
@@ -472,7 +472,7 @@ def resolve_kb_values(kb, canonical=None):
     """Apply canonical answers, then Tier 1 identity rules, over KB values.
 
     kb, canonical: {field_name: value}; canonical comes from
-    formflow_canonical.canonical_values(). Precedence: Tier 1 > canonical > KB.
+    nff_canonical.canonical_values(). Precedence: Tier 1 > canonical > KB.
     Returns (values, sources) with sources "tier1", "canonical", "kb" or "derived".
     """
     values = {k: str(v) for k, v in (kb or {}).items() if v not in (None, "")}
@@ -631,7 +631,7 @@ def get_categories():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Workflow Registry")
+    parser = argparse.ArgumentParser(description="NTXP Form Filler Workflow Registry")
     parser.add_argument("--match", type=str, help="Match a filename to a workflow")
     parser.add_argument("--list", action="store_true", help="List all workflows")
     parser.add_argument("--category", type=str, default=None,
@@ -647,9 +647,9 @@ def main():
                         help="Build fill_pdf answers (Tier 1 enforced) for a form type")
     parser.add_argument("--kb-json", type=str, help="KB values JSON {field_name: value}")
     parser.add_argument("--canonical-json", type=str,
-                        help="Canonical answers {field_name: value} (formflow_canonical output)")
+                        help="Canonical answers {field_name: value} (nff_canonical output)")
     parser.add_argument("--fields-json", type=str,
-                        help="formflow_detect_fields.py output (forms without a fixed layout)")
+                        help="nff_detect_fields.py output (forms without a fixed layout)")
     parser.add_argument("--output", type=str, help="Write answers JSON here")
     args = parser.parse_args()
 
@@ -688,7 +688,7 @@ def main():
         if not workflows:
             print("No workflows found.")
         else:
-            print(f"\nFormFlow Prewired Workflows"
+            print(f"\nNTXP Form Filler Prewired Workflows"
                   f"{' (' + args.category + ')' if args.category else ''}")
             print("=" * 60)
             for wf in workflows:

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FormFlow — Smart Document Form Filler</title>
+<title>NTXP Form Filler — Smart Document Form Filler</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
@@ -273,7 +273,7 @@ input:focus, textarea:focus, select:focus { border-color:var(--bdr-f); box-shado
 <nav id="nav">
   <div class="brand">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--pri)"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18"/><path d="M3 9h6"/><path d="M3 15h6"/></svg>
-    <span class="brand-t">FormFlow</span>
+    <span class="brand-t">NTXP Form Filler</span>
   </div>
   <div class="tabs">
     <button class="tab on" data-v="filler"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Fill Forms</button>
@@ -289,7 +289,7 @@ input:focus, textarea:focus, select:focus { border-color:var(--bdr-f); box-shado
 <div id="wizOv" class="ov hide">
   <div class="wiz">
     <div class="wiz-head">
-      <h2>Welcome to FormFlow</h2>
+      <h2>Welcome to NTXP Form Filler</h2>
       <p>Answer a few questions to seed your Knowledge Base. Forms will auto-fill from here on.</p>
       <div class="wiz-prog"><div class="prog-bar"><div class="prog-fill" id="wizProg"></div></div><span class="prog-lbl" id="wizLbl">Step 1 of 5</span></div>
     </div>
@@ -425,7 +425,7 @@ function toast(msg, type='') {
 // ================================================================
 // Local Storage KB
 // ================================================================
-const KB_KEY = 'formflow_kb';
+const KB_KEY = 'nff_kb';
 function loadKB() {
   try { S.kb = JSON.parse(localStorage.getItem(KB_KEY)) || {}; } catch { S.kb = {}; }
   $('#kbBadge').textContent = Object.keys(S.kb).length;

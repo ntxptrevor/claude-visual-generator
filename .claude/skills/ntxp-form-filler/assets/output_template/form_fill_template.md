@@ -1,6 +1,6 @@
 # Form Filler UI — Artifact Template
 
-Generate an interactive HTML artifact for the FormFlow form filling session.
+Generate an interactive HTML artifact for the NTXP Form Filler form filling session.
 This artifact presents detected form fields with KB matches for review and filling.
 
 ## Design Requirements
@@ -10,7 +10,7 @@ This artifact presents detected form fields with KB matches for review and filli
 - **Labels**: Bold text for field names
 - **Organization**: Color-coded confidence indicators, bullet points
 - **Theme**: Professional blue/green (#1a365d, #38a169 accent)
-- **Branding**: "FormFlow by NTXP LLC" footer
+- **Branding**: "NTXP Form Filler by NTXP LLC" footer
 
 ## Artifact Structure
 

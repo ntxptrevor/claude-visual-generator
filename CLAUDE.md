@@ -19,9 +19,9 @@ only on written direction from the owner.
 - **Signatures** are always a Tier 3 gate: explicit approval inside Claude, bound to the
   exact file, before the document leaves NTXP.
 
-These rules are hard-coded in `scripts/formflow_signatures.py` (`NTXP_IDENTITY`),
-`scripts/formflow_workflow_registry.py` (W-9 `fixed_values`), and
-`.claude/skills/form-filler/SKILL.md` (Tier 1 Rules section). The FormFlow KB Sheet
+These rules are hard-coded in `scripts/nff_signatures.py` (`NTXP_IDENTITY`),
+`scripts/nff_workflow_registry.py` (W-9 `fixed_values`), and
+`.claude/skills/ntxp-form-filler/SKILL.md` (Tier 1 Rules section). The NTXP Form Filler KB Sheet
 (`1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug`) carries the same values.
 
 ## Where things are

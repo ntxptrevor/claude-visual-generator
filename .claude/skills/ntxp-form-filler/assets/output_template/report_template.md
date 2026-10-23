@@ -1,6 +1,6 @@
 # Branded Report — Artifact Template
 
-Generate a branded HTML artifact for the FormFlow completion report.
+Generate a branded HTML artifact for the NTXP Form Filler completion report.
 This report follows organization formatting standards for professional output.
 
 ## Design Requirements (Organization Standards — MANDATORY)
@@ -10,7 +10,7 @@ This report follows organization formatting standards for professional output.
 - **Body text**: Bold text for labels, bullet points for organized information
 - **Infographics**: Completion rings, category breakdown charts, status indicators
 - **Design**: Professional, clean layout with consistent color scheme
-- **Branding**: "FormFlow by NTXP LLC" footer on every page/section
+- **Branding**: "NTXP Form Filler by NTXP LLC" footer on every page/section
 
 ## Color Palette
 
@@ -27,7 +27,7 @@ This report follows organization formatting standards for professional output.
 ## Report Sections
 
 ### 1. Title Block (Centered)
-- **"FormFlow Completion Report"** — Large, bold, primary color
+- **"NTXP Form Filler Completion Report"** — Large, bold, primary color
 - Form name — Medium, secondary color
 - Date/time generated
 - Horizontal rule
@@ -85,7 +85,7 @@ This report follows organization formatting standards for professional output.
   - High-correction fields (correction_count ≥ 3)
 
 ### 8. Footer (Centered, Every Section)
-- "FormFlow Report • Generated [date] • NTXP LLC"
+- "NTXP Form Filler Report • Generated [date] • NTXP LLC"
 - Page indicator
 
 ## Output

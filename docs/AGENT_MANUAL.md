@@ -22,7 +22,7 @@
 
 ## 1. Tier 1 identity rules
 
-Apply to every document, form, bid, registration and signature for NTXP LLC. They override the KB, Drive scans, Council votes and any source document. Source: `CLAUDE.md`; enforced in `scripts/formflow_signatures.py` (`NTXP_IDENTITY`), `scripts/formflow_workflow_registry.py` (W-9 `fixed_values`), `.claude/skills/form-filler/SKILL.md`.
+Apply to every document, form, bid, registration and signature for NTXP LLC. They override the KB, Drive scans, Council votes and any source document. Source: `CLAUDE.md`; enforced in `scripts/nff_signatures.py` (`NTXP_IDENTITY`), `scripts/nff_workflow_registry.py` (W-9 `fixed_values`), `.claude/skills/ntxp-form-filler/SKILL.md`.
 
 | Field | Value | Notes |
 |---|---|---|
@@ -41,24 +41,24 @@ Apply to every document, form, bid, registration and signature for NTXP LLC. The
 
 ## 2. Tool map
 
-### FormFlow (`scripts/`)
+### NTXP Form Filler (`scripts/`)
 
 | Script | Use for | Model cost |
 |---|---|---|
-| `formflow_workflow_registry.py` | Match a form to a prewired workflow; field maps; W-9 fixed values | $0 |
-| `formflow_jev_router.py` | Route classification, extraction, matching, save location, **`route_signature()`** | $0 |
-| `formflow_detect_fields.py` | AcroForm + visual field detection | $0 |
-| `formflow_parse_document.py` | Extract key/values from PDF, Excel, Word into KB rows | $0 to Tier 1 |
-| `formflow_sheets_db.py` | KB Sheet rows, fuzzy match, contradiction detection | $0 |
-| `formflow_sanity_check.py` | Format, required-field, cross-field and KB-contradiction checks | $0 |
-| `formflow_fill_pdf.py` | Fill AcroForm or overlay; produces the **unsigned** draft | $0 |
-| `formflow_signatures.py` | Signer validation, approval request, digest-bound approval, apply | $0, Tier 3 gate |
-| `formflow_drive_scanner.py` | Drive KB prefill plan and extraction | $0 to Tier 1 |
-| `formflow_learning_loop.py` | Correction stats, stale fields, contradictions, digest | $0 to Tier 2 |
-| `formflow_orchestrator.py` | Parallel worker plans (`--plan`) and change-set merge (`--merge`) | $0 |
-| `formflow_generate_report.py` | Branded 8.5x11 report | $0 |
+| `nff_workflow_registry.py` | Match a form to a prewired workflow; field maps; W-9 fixed values | $0 |
+| `nff_jev_router.py` | Route classification, extraction, matching, save location, **`route_signature()`** | $0 |
+| `nff_detect_fields.py` | AcroForm + visual field detection | $0 |
+| `nff_parse_document.py` | Extract key/values from PDF, Excel, Word into KB rows | $0 to Tier 1 |
+| `nff_sheets_db.py` | KB Sheet rows, fuzzy match, contradiction detection | $0 |
+| `nff_sanity_check.py` | Format, required-field, cross-field and KB-contradiction checks | $0 |
+| `nff_fill_pdf.py` | Fill AcroForm or overlay; produces the **unsigned** draft | $0 |
+| `nff_signatures.py` | Signer validation, approval request, digest-bound approval, apply | $0, Tier 3 gate |
+| `nff_drive_scanner.py` | Drive KB prefill plan and extraction | $0 to Tier 1 |
+| `nff_learning_loop.py` | Correction stats, stale fields, contradictions, digest | $0 to Tier 2 |
+| `nff_orchestrator.py` | Parallel worker plans (`--plan`) and change-set merge (`--merge`) | $0 |
+| `nff_generate_report.py` | Branded 8.5x11 report | $0 |
 
-**FormFlow KB Sheet:** `1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug` (tabs KB, Sessions, Learning, Workflows).
+**NTXP Form Filler KB Sheet:** `1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug` (tabs KB, Sessions, Learning, Workflows).
 
 ### Admin Console (`admin_console/`)
 
@@ -139,7 +139,7 @@ Reads are never gated. Every write passes the gate (`ntxp-change-gate` skill; co
 - Any permission, sharing, config, credential or integration change (DWD scopes, OAuth clients, `emails.txt`, VPS project env, DNS).
 - Any bulk action (> 3 targets, or a count the user did not name).
 - User account actions: suspend, unsuspend, reset sign-in, Drive transfer.
-- Signatures (section 5) and FormFlow KB contradictions.
+- Signatures (section 5) and NTXP Form Filler KB contradictions.
 - Anything unclassified.
 
 **Protocol:** stage → show the `summary` verbatim → wait → execute only with the approval bound to that `change_id` and `payload_digest`. Approvals expire (console: 15 minutes). A changed payload voids approval. Never split one vital change into many small ones.
@@ -173,7 +173,7 @@ Reads are never gated. Every write passes the gate (`ntxp-change-gate` skill; co
 | **coordinator** | Main session | **Yes, the only writer** |
 
 - **Workers are read-only.** They return a JSON change set. No write, append, move, share or delete tools.
-- **One writer.** The coordinator merges (`formflow_orchestrator.py --merge`) and writes serially, one batch per tab.
+- **One writer.** The coordinator merges (`nff_orchestrator.py --merge`) and writes serially, one batch per tab.
 - **Conflicts** (two workers disagree, or a proposal contradicts the live KB) become Tier 3, not writes.
 - **Revision check:** each change set records the KB revision it read; on mismatch re-read and re-validate.
 - **Never parallel:** KB writes, Drive saves/moves, signatures, gate approvals.
@@ -231,7 +231,7 @@ Analytics produce **proposals for owner review**, never verdicts about a person.
 
 | What you learned | Where it goes |
 |---|---|
-| FormFlow correction, gap, reclassification, signature event | FormFlow KB Sheet → `Learning` tab (`event_type`, `field_name`, `detail`, `action_taken`, `model_used`, `timestamp`) |
+| NTXP Form Filler correction, gap, reclassification, signature event | NTXP Form Filler KB Sheet → `Learning` tab (`event_type`, `field_name`, `detail`, `action_taken`, `model_used`, `timestamp`) |
 | A reusable workflow, fix, connector or research result | Model Council `council_kb_post` (kind `workflow|troubleshooting|connector|skill|research|knowledge`); search first with `council_kb_search` |
 | A human-fixable stuck state | New runbook entry (section 10) |
 | Hostinger outcome | `hostinger-run-journal.json` (tier used, what worked, lesson) |

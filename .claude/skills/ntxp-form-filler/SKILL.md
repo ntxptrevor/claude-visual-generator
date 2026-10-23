@@ -1,14 +1,14 @@
 ---
-name: form-filler
-description: "FormFlow - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Fills from the FormFlow KB and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules (owner Alison Hopkins, S corporation, 101 South Locust St Ste 605, 469-248-7431). JEV routes each step to the cheapest correct method; prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, put our info on this, canonical answers."
+name: ntxp-form-filler
+description: "NTXP Form Filler - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Fills from the NTXP Form Filler KB and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules (owner Alison Hopkins, S corporation, 101 South Locust St Ste 605, 469-248-7431). JEV routes each step to the cheapest correct method; prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, put our info on this, canonical answers."
 skills: ntxp-model-router, ntxp-model-council, ntxp-change-gate, ntxp-folder-system
 ---
 
-# FormFlow v2 — Autonomous Smart Form Filler
+# NTXP Form Filler — Autonomous Smart Form Filler
 
 ## Overview
 
-FormFlow is an autonomous AI form-filling system that operates without user observation.
+NTXP Form Filler is an autonomous AI form-filling system that operates without user observation.
 It builds an evolving Knowledge Base from NTXP's Google Drive, detects and fills PDF
 forms using the cheapest-correct model via JEV routing, and gates only for minimal
 human approval through a guided page-by-page scrolling GUI with highlighted fields.
@@ -71,15 +71,15 @@ human approval through a guided page-by-page scrolling GUI with highlighted fiel
 ## TIER 1 RULES — NTXP Identity (owner directive, hard-coded)
 
 These override KB values, Drive scans, learning-loop suggestions, Council votes and any
-document FormFlow reads. Change them only on written direction from the owner.
+document NTXP Form Filler reads. Change them only on written direction from the owner.
 
 | Rule | Value | Enforced in |
 |---|---|---|
-| **Owner of NTXP LLC** | Always listed as **Alison Hopkins** (Owner) | `NTXP_IDENTITY` in `formflow_signatures.py` |
+| **Owner of NTXP LLC** | Always listed as **Alison Hopkins** (Owner) | `NTXP_IDENTITY` in `nff_signatures.py` |
 | **Operations contact** | Always **Trevor Hopkins** | `NTXP_IDENTITY` |
 | **Designated signatory** | Always **Alison Hopkins** (default signer) | `DESIGNATED_SIGNATORY`, `route_signature()` |
 | **Alternate signatory** | **Trevor Hopkins**, only when circumstances require; reason recorded | `requires_circumstance`, `verify_approval()` |
-| **W-9 line 3a** | Check **S corporation** only. Never check LLC; leave the LLC code blank | W-9 `fixed_values` / `never_fill` in `formflow_workflow_registry.py` |
+| **W-9 line 3a** | Check **S corporation** only. Never check LLC; leave the LLC code blank | W-9 `fixed_values` / `never_fill` in `nff_workflow_registry.py` |
 | **Business address** | **101 South Locust St Ste 605, Denton, TX 76201** | KB; `retired:` rows block superseded addresses |
 | **Business phone** | **469-248-7431** | KB |
 
@@ -96,7 +96,7 @@ The KB Sheet's **`Canonical`** tab holds the owner-approved answers forms reuse,
 as bid exhibits: **A = insurance and bonding**, **B = W-9**, **C = ACH / banking**. Every
 row records its source document, date and status (`canonical`, `conflict`, `missing`).
 
-`scripts/formflow_canonical.py` decides the correct value for a field at Tier 0 ($0):
+`scripts/nff_canonical.py` decides the correct value for a field at Tier 0 ($0):
 1. A Tier 1 rule (CLAUDE.md) always wins.
 2. Retired values (e.g. 405 S Elm St) are never chosen.
 3. Otherwise the highest-ranked source wins: owner-approved exhibit > executed third-party
@@ -107,7 +107,7 @@ row records its source document, date and status (`canonical`, `conflict`, `miss
 
 Banking (ACH) values are confidential: masked in logs, never sent to any model, and any
 form that uses them needs Tier 3 approval. Pass canonical values to the answer builder:
-`formflow_workflow_registry.py --answers <type> --kb-json kb.json --canonical-json canonical.json`.
+`nff_workflow_registry.py --answers <type> --kb-json kb.json --canonical-json canonical.json`.
 Precedence when filling: Tier 1 > canonical > KB.
 
 ---
@@ -133,8 +133,8 @@ variables, never from files in the repo. Setup: `scripts/google_workspace/README
 The KB lives in a Google Sheet shared across the organization — no Supabase, no env vars,
 no server setup. Admins and project teams edit it directly at any time from any device.
 
-**Sheet ID**: `1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug` (FormFlow KB — tabs KB, Sessions,
-Learning, Workflows). Also stored in Model Council KB as `formflow_sheet_id`.
+**Sheet ID**: `1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug` (NTXP Form Filler KB — tabs KB, Sessions,
+Learning, Workflows). Also stored in Model Council KB as `nff_sheet_id`.
 
 ### Tab: `KB` (Knowledge Base)
 
@@ -193,7 +193,7 @@ Pre-populated with known form templates and their field maps. See Prewired Workf
 ## JEV Decision Tree
 
 JEV (the Model Council referee) governs every routing decision. The decision tree
-scores each FormFlow subtask and dispatches to the cheapest executor that will
+scores each NTXP Form Filler subtask and dispatches to the cheapest executor that will
 produce a correct result.
 
 ### Routing Rules (enforced, not advisory)
@@ -314,7 +314,7 @@ or form title) — zero inference cost.
 
 ## Autonomous Operation
 
-FormFlow operates without user observation. It is designed to:
+NTXP Form Filler operates without user observation. It is designed to:
 
 ### Smart Form Discovery
 1. **Watch folders**: Monitor Drive locations where blank forms typically arrive:
@@ -353,7 +353,7 @@ The user scrolls through at their own pace — no action needed for approved fie
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│           FormFlow — W-9 Tax Information                │
+│           NTXP Form Filler — W-9 Tax Information                │
 │           Page 1 of 2  ·  87% Auto-Filled              │
 │     ████████████████████████░░░░  Progress: 13/15       │
 ├─────────────────────────────────────────────────────────┤
@@ -409,9 +409,9 @@ The user scrolls through at their own pace — no action needed for approved fie
 
 ## Signatures (Designated Signatory, Always Tier 3)
 
-FormFlow can stamp a signature block (name, title, date) onto a filled form, but only
-under these rules, enforced in `scripts/formflow_signatures.py` and `route_signature()`
-in `scripts/formflow_jev_router.py`:
+NTXP Form Filler can stamp a signature block (name, title, date) onto a filled form, but only
+under these rules, enforced in `scripts/nff_signatures.py` and `route_signature()`
+in `scripts/nff_jev_router.py`:
 
 - **Designated signatory: Alison Hopkins (Owner).** She is the default signer on every form.
 - **Alternate signatory: Trevor Hopkins.** He holds signing authority but signs only when
@@ -435,7 +435,7 @@ in `scripts/formflow_jev_router.py`:
 ```
 [Step 3-6b. Signature (only if form type needs one)]
     │
-    +── formflow_signatures.check_form_needs_signature(form_type)
+    +── nff_signatures.check_form_needs_signature(form_type)
     +── detect_signature_fields(form_fields)
     +── Signer = Alison Hopkins (designated). Trevor Hopkins only with a stated circumstance.
     +── generate_approval_request(...) → show summary verbatim, HARD STOP
@@ -452,9 +452,9 @@ insurance certificate forms. The registry marks them `needs_signature: true`.
 
 ## Parallel Subagents (Single-Writer Model)
 
-FormFlow fans out independent work to parallel subagents sized to the task, so large
+NTXP Form Filler fans out independent work to parallel subagents sized to the task, so large
 jobs (Drive scans, multi-form packages, learning-loop analysis) finish fast. Plans come
-from `scripts/formflow_orchestrator.py`.
+from `scripts/nff_orchestrator.py`.
 
 ### Agent Profiles
 
@@ -494,15 +494,15 @@ that actually needs a model is handed to a subagent, at the cheapest profile tha
 | `learning_loop` | extractor computes stats | reviewer analyzes flagged fields |
 
 ```bash
-python scripts/formflow_orchestrator.py --plan drive_scan --items 40
-python scripts/formflow_orchestrator.py --merge w1.json w2.json --kb-json kb.json
+python scripts/nff_orchestrator.py --plan drive_scan --items 40
+python scripts/nff_orchestrator.py --merge w1.json w2.json --kb-json kb.json
 ```
 
 ---
 
 ## Drive KB Prefill (Phase 0 Bootstrap)
 
-On first run, FormFlow scans NTXP's Google Drive to seed the KB from completed documents.
+On first run, NTXP Form Filler scans NTXP's Google Drive to seed the KB from completed documents.
 
 ### Scan Locations (NTXP Folder System)
 
@@ -596,7 +596,7 @@ The self-learning loop consults the Model Council for:
 [Phase 0: Bootstrap & Environment]
     │
     +── Step 0-1. Google Sheets KB
-    │   +── Check for existing FormFlow KB sheet (council_kb_search "formflow_sheet_id")
+    │   +── Check for existing NTXP Form Filler KB sheet (council_kb_search "nff_sheet_id")
     │   +── If not found: create via mcp__Google_Drive__create_file
     │   │   - Create tabs: KB, Sessions, Learning, Workflows
     │   │   - Write headers to each tab
@@ -646,7 +646,7 @@ The self-learning loop consults the Model Council for:
     │   │   - Simple text KV? → regex + pdfplumber, $0
     │   │   - Complex layout? → Tier 1 model, ~$0.002
     │   │   - Scanned/handwritten? → Tier 2 model with OCR, ~$0.01
-    │   +── Run: python scripts/formflow_parse_document.py
+    │   +── Run: python scripts/nff_parse_document.py
     │
     +── Step 2-3. KB merge with conflict resolution
     │   +── New fields → auto-add (Tier 1 gate: batch approve)
@@ -663,13 +663,13 @@ The self-learning loop consults the Model Council for:
     │   +── Determine save location via ntxp-folder-system
     │
     +── Step 3-2. Field detection
-    │   +── python scripts/formflow_detect_fields.py
+    │   +── python scripts/nff_detect_fields.py
     │   +── JEV routes: AcroForm=$0, visual=Tier 0-1
     │
     +── Step 3-3. KB matching and confidence scoring
     │   +── Read KB tab via mcp__Google_Sheets__get_values
     │   +── Known layout (official W-9 etc.): ALWAYS build answers with
-    │   │   python scripts/formflow_workflow_registry.py --answers w9 \
+    │   │   python scripts/nff_workflow_registry.py --answers w9 \
     │   │       --kb-json kb.json --output answers.json
     │   │   (applies Tier 1 overrides, fixed_values, never_fill, EIN split;
     │   │    never hand-map these fields). Fields it lists as "manual" go to the GUI.
@@ -685,11 +685,11 @@ The self-learning loop consults the Model Council for:
     │   +── Corrections saved to KB with correction_count++
     │
     +── Step 3-5. Sanity checks
-    │   +── python scripts/formflow_sanity_check.py
+    │   +── python scripts/nff_sanity_check.py
     │   +── Present issues in GUI for resolution
     │
     +── Step 3-6. Generate filled PDF (unsigned draft)
-    │   +── python scripts/formflow_fill_pdf.py --form blank.pdf --answers answers.json \
+    │   +── python scripts/nff_fill_pdf.py --form blank.pdf --answers answers.json \
     │           --output filled.pdf --method acroform
     │
     +── Step 3-6b. Signature (see Signatures section; always Tier 3)
@@ -757,18 +757,18 @@ claude-visual-generator/
 │               ├── conflict_resolution_template.md      ← Conflict resolution
 │               └── report_template.md                   ← Branded report
 ├── scripts/
-│   ├── formflow_sheets_db.py                           ← Google Sheets KB operations
-│   ├── formflow_parse_document.py                      ← Document parser (PDF/Excel/Word)
-│   ├── formflow_detect_fields.py                       ← PDF form field detection
-│   ├── formflow_fill_pdf.py                            ← PDF form filling & output
-│   ├── formflow_sanity_check.py                        ← Validation & sanity checks
-│   ├── formflow_generate_report.py                     ← Branded report generator
-│   ├── formflow_drive_scanner.py                       ← Drive KB prefill scanner
-│   ├── formflow_learning_loop.py                       ← Self-learning engine
-│   ├── formflow_jev_router.py                          ← JEV decision tree implementation
-│   ├── formflow_workflow_registry.py                   ← Prewired workflow field maps
-│   ├── formflow_signatures.py                          ← Owner-only signatures, Tier 3 gate
-│   └── formflow_orchestrator.py                        ← Parallel subagent plans + merge
+│   ├── nff_sheets_db.py                           ← Google Sheets KB operations
+│   ├── nff_parse_document.py                      ← Document parser (PDF/Excel/Word)
+│   ├── nff_detect_fields.py                       ← PDF form field detection
+│   ├── nff_fill_pdf.py                            ← PDF form filling & output
+│   ├── nff_sanity_check.py                        ← Validation & sanity checks
+│   ├── nff_generate_report.py                     ← Branded report generator
+│   ├── nff_drive_scanner.py                       ← Drive KB prefill scanner
+│   ├── nff_learning_loop.py                       ← Self-learning engine
+│   ├── nff_jev_router.py                          ← JEV decision tree implementation
+│   ├── nff_workflow_registry.py                   ← Prewired workflow field maps
+│   ├── nff_signatures.py                          ← Owner-only signatures, Tier 3 gate
+│   └── nff_orchestrator.py                        ← Parallel subagent plans + merge
 ```
 
 ---

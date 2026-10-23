@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-FormFlow Parallel Subagent Orchestrator
+NTXP Form Filler Parallel Subagent Orchestrator
 
-Plans fan-out of independent FormFlow work to parallel subagents, each sized
+Plans fan-out of independent NTXP Form Filler work to parallel subagents, each sized
 to the cheapest intelligence that can do it correctly, while keeping shared
 state (the Google Sheets KB, Drive outputs) corruption-free.
 
@@ -16,10 +16,10 @@ Safety model (single-writer):
   - Signatures and confidential content never fan out to non-Claude seats.
 
 Usage (CLI):
-    python formflow_orchestrator.py --plan drive_scan --items 40
-    python formflow_orchestrator.py --plan batch_fill --items 6
-    python formflow_orchestrator.py --merge a.json b.json c.json
-    python formflow_orchestrator.py --agents
+    python nff_orchestrator.py --plan drive_scan --items 40
+    python nff_orchestrator.py --plan batch_fill --items 6
+    python nff_orchestrator.py --merge a.json b.json c.json
+    python nff_orchestrator.py --agents
 """
 
 import argparse
@@ -163,7 +163,7 @@ def plan(job, item_count, confidential=False):
 def worker_contract():
     return {
         "instructions": (
-            "You are a READ-ONLY FormFlow worker. Do not call any tool that "
+            "You are a READ-ONLY NTXP Form Filler worker. Do not call any tool that "
             "writes, appends, updates, moves, shares or deletes. Return only "
             "a JSON change set in the schema below."
         ),
@@ -251,7 +251,7 @@ def merge_change_sets(change_sets, kb_entries=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Parallel Orchestrator")
+    parser = argparse.ArgumentParser(description="NTXP Form Filler Parallel Orchestrator")
     parser.add_argument("--plan", choices=sorted(PLANS))
     parser.add_argument("--items", type=int, default=10)
     parser.add_argument("--confidential", action="store_true")

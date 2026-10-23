@@ -1,6 +1,6 @@
 # Guided Approval GUI — Artifact Template
 
-Generate an interactive HTML artifact for the FormFlow page-by-page approval GUI.
+Generate an interactive HTML artifact for the NTXP Form Filler page-by-page approval GUI.
 This artifact presents filled form fields for review with confidence-based highlighting,
 point-and-click editing, and minimal approval gating.
 
@@ -11,7 +11,7 @@ point-and-click editing, and minimal approval gating.
 - **Body text**: Bold labels for field names, bullet points for organized info
 - **Infographics**: Progress bar, completion ring, confidence meters
 - **Design**: Professional, clean layout with NTXP branding
-- **Branding**: "FormFlow by NTXP LLC" footer on every page
+- **Branding**: "NTXP Form Filler by NTXP LLC" footer on every page
 
 ## Color Palette
 

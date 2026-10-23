@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-FormFlow Drive KB Prefill Scanner
+NTXP Form Filler Drive KB Prefill Scanner
 
 Scans NTXP Google Drive for completed forms, applications, registrations,
 licenses, RFP responses, and contracts to extract field values and seed
-the FormFlow Knowledge Base.
+the NTXP Form Filler Knowledge Base.
 
 Designed for JEV-optimized scanning:
   - Tier 0: Regex on filename/metadata ($0)
@@ -12,15 +12,15 @@ Designed for JEV-optimized scanning:
   - Tier 2: Complex document parsing (Sonnet, ~$0.01)
 
 Usage (as library):
-    from formflow_drive_scanner import DriveScanner
+    from nff_drive_scanner import DriveScanner
     scanner = DriveScanner()
     results = scanner.classify_file("W-9 NTXP LLC.pdf")
     fields = scanner.extract_from_text(text_content, form_type)
 
 Usage (CLI):
-    python formflow_drive_scanner.py --classify "W-9 NTXP LLC.pdf"
-    python formflow_drive_scanner.py --scan-plan
-    python formflow_drive_scanner.py --extract-text "raw text" --form-type w9
+    python nff_drive_scanner.py --classify "W-9 NTXP LLC.pdf"
+    python nff_drive_scanner.py --scan-plan
+    python nff_drive_scanner.py --extract-text "raw text" --form-type w9
 """
 
 import argparse
@@ -28,7 +28,7 @@ import json
 import re
 import sys
 
-from formflow_signatures import TIER1_FIELD_OVERRIDES
+from nff_signatures import TIER1_FIELD_OVERRIDES
 
 
 SCAN_LOCATIONS = [
@@ -381,7 +381,7 @@ def generate_scan_plan():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Drive KB Prefill Scanner")
+    parser = argparse.ArgumentParser(description="NTXP Form Filler Drive KB Prefill Scanner")
     parser.add_argument("--classify", type=str, help="Classify a filename")
     parser.add_argument("--scan-plan", action="store_true", help="Show scan plan")
     parser.add_argument("--extract-text", type=str, help="Extract fields from text")
@@ -402,7 +402,7 @@ def main():
         if args.output_json:
             print(json.dumps(plan, indent=2))
         else:
-            print("FormFlow Drive Scan Plan")
+            print("NTXP Form Filler Drive Scan Plan")
             print("=" * 50)
             for loc in plan["locations"]:
                 print(f"\n  [{loc['priority']}] {loc['path']}")

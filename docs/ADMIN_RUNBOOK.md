@@ -69,8 +69,8 @@
   - [RB-036](#rb-036-dashboard-tiles-never-update-until-the-page-is-reloaded) Dashboard tiles never update until the page is reloaded.
   - [RB-037](#rb-037-the-console-shows-sample-names-or-a-demo-badge-in-production) The console shows sample names or a "Demo" badge in production.
   - [RB-038](#rb-038-an-employee-asks-whether-they-are-being-monitored-objects-to-monitoring-or-files-a-complaint-about-a-flag) An employee asks whether they are being monitored, objects to monitoring, or files a co...
-- [FormFlow](#formflow) (6)
-  - [RB-039](#rb-039-formflow-finds-no-fields-or-too-few-in-a-blank-form) FormFlow finds no fields (or too few) in a blank form.
+- [NTXP Form Filler](#ntxp-form-filler) (6)
+  - [RB-039](#rb-039-ntxp-form-filler-finds-no-fields-or-too-few-in-a-blank-form) NTXP Form Filler finds no fields (or too few) in a blank form.
   - [RB-040](#rb-040-the-filled-pdf-opens-with-empty-boxes-even-though-the-approval-screen-showed-values) The filled PDF opens with empty boxes even though the approval screen showed values.
   - [RB-041](#rb-041-signature-step-stops-with-needs_circumstance-or-signer-not-allowed) Signature step stops with "needs_circumstance" or "signer not allowed".
   - [RB-042](#rb-042-a-signature-that-was-approved-is-now-refused-with-approval-void-or-digest-mismatch) A signature that was approved is now refused with "approval void" or digest mismatch.
@@ -638,9 +638,9 @@
 
 ---
 
-## FormFlow
+## NTXP Form Filler
 
-### RB-039 FormFlow finds no fields (or too few) in a blank form.
+### RB-039 NTXP Form Filler finds no fields (or too few) in a blank form.
 
 - **Likely cause:** The PDF is a scan or flattened print with no fillable (AcroForm) fields, so only visual detection can find blanks.
 - **Escalate to:** Trevor (operations)
@@ -649,9 +649,9 @@
 
 **Steps**
 
-1. Run: python scripts/formflow_detect_fields.py --form <file>.pdf --output-json fields.json and check the count.
+1. Run: python scripts/nff_detect_fields.py --form <file>.pdf --output-json fields.json and check the count.
 2. If 0 AcroForm fields, ask the sender for a fillable PDF; agencies often have one on their website.
-3. Otherwise let FormFlow use overlay mode and review every field in the approval GUI (expect more red Manual fields).
+3. Otherwise let NTXP Form Filler use overlay mode and review every field in the approval GUI (expect more red Manual fields).
 4. Log the form name in the Learning tab as gap_found so it becomes a prewired workflow.
 
 ### RB-040 The filled PDF opens with empty boxes even though the approval screen showed values.
@@ -664,7 +664,7 @@
 **Steps**
 
 1. Open the file in Adobe Acrobat Reader; values usually appear there.
-2. If still empty, re-run formflow_fill_pdf.py with overlay mode so values are drawn on the page.
+2. If still empty, re-run nff_fill_pdf.py with overlay mode so values are drawn on the page.
 3. If the form is XFA (Acrobat says 'Please wait...' or 'dynamic form'), request a standard PDF from the agency or print to PDF first.
 
 ### RB-041 Signature step stops with "needs_circumstance" or "signer not allowed".
@@ -703,7 +703,7 @@
 **Steps**
 
 1. Do not send the form. Correct the field in the approval GUI to the Tier 1 value.
-2. In the FormFlow KB sheet, mark the old value as retired: in the alternates column so it is blocked in future.
+2. In the NTXP Form Filler KB sheet, mark the old value as retired: in the alternates column so it is blocked in future.
 3. If an agency's own records show the retired value and they require a change form, that is an owner decision.
 4. Log the correction in the Learning tab.
 
