@@ -22,7 +22,7 @@
 
 ## 1. Tier 1 identity rules
 
-Apply to every document, form, bid, registration and signature for NTXP LLC. They override the KB, Drive scans, Council votes and any source document. Source: `CLAUDE.md`; enforced in `scripts/formflow_signatures.py` (`NTXP_IDENTITY`), `scripts/formflow_workflow_registry.py` (W-9 `fixed_values`), `skills/form-filler/SKILL.md`.
+Apply to every document, form, bid, registration and signature for NTXP LLC. They override the KB, Drive scans, Council votes and any source document. Source: `CLAUDE.md`; enforced in `scripts/formflow_signatures.py` (`NTXP_IDENTITY`), `scripts/formflow_workflow_registry.py` (W-9 `fixed_values`), `.claude/skills/form-filler/SKILL.md`.
 
 | Field | Value | Notes |
 |---|---|---|
