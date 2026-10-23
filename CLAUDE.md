@@ -21,8 +21,9 @@ only on written direction from the owner.
 
 These rules are hard-coded in `scripts/nff_signatures.py` (`NTXP_IDENTITY`),
 `scripts/nff_workflow_registry.py` (W-9 `fixed_values`), and
-`.claude/skills/ntxp-form-filler/SKILL.md` (Tier 1 Rules section). The NTXP Form Filler KB Sheet
-(`1IZXlxLhPj4ZOgWC4m9dXPTd0b3rqJfoAwuW3d5Ih-Ug`) carries the same values.
+`.claude/skills/ntxp-form-filler/SKILL.md` (Tier 1 Rules section). The **NTXP Form Filler Database**
+Sheet (`1KYFkZoEWNvbAYqZ0Vq4LOUPh9QM4MiIYyqPmDyIelQA`, in `! NTXP Knowledge Base / Admin Tools /
+NTXP Form Filler Skill`) carries the same values and syncs one way into the skill's SQLite DB.
 
 ## Where things are
 

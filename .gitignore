@@ -22,3 +22,9 @@ admin_console/deploy/.env
 
 # Claude Code tool audit log (local only)
 .claude/audit/
+
+# NTXP Form Filler local data (database holds EIN/banking; never commit)
+.ntxp/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
