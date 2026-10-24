@@ -377,8 +377,9 @@ def resolve_canonical(rows, retired=RETIRED_VALUES):
         status = str(r.get("status", "")).lower()
         name = r.get("field_name")
         if status not in CANONICAL_LIVE_STATUSES:
-            # Never autofill from these, and hold the field so a lower-priority KB value cannot fill it.
-            if name:
+            # Never autofill from these. Undecided rows hold the field so a lower-priority KB value
+            # cannot fill it; rejected, retired and superseded rows are already disposed of.
+            if name and status not in ("rejected", "retired", "superseded"):
                 unresolved.setdefault(name, status or "unresolved")
             continue
         if not name or r.get("field_value") in (None, ""):

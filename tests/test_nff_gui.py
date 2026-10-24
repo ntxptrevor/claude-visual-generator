@@ -456,3 +456,10 @@ def test_unresolved_canonical_fields_are_held_not_filled():
              "source_title": "ACORD", "category": "insurance", "status": "pending"}]
     values, held = gui.resolve_canonical(rows)
     assert "gl_limit" not in values and held["gl_limit"]["status"] == "pending"
+
+
+def test_rejected_canonical_rows_do_not_hold_the_field():
+    rows = [{"field_name": "cage_code", "field_value": "OLD12", "source_kind": "executed_doc",
+             "source_title": "Old", "category": "other", "status": "retired"}]
+    values, held = gui.resolve_canonical(rows)
+    assert "cage_code" not in held and "cage_code" not in values
