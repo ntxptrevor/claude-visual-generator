@@ -43,7 +43,10 @@ if str(SCRIPTS) not in sys.path:
 import nff_render as render  # noqa: E402
 from nff_render import format_currency, format_date, format_phone, initials_of  # noqa: E402,F401
 
-ASSETS = SCRIPTS.parent / ".claude" / "skills" / "ntxp-form-fill" / "assets" / "gui"
+# Repo layout: scripts/ beside .claude/skills/. Vendored skill layout: scripts/ beside assets/.
+ASSETS = next((p for p in (SCRIPTS.parent / "assets" / "gui",
+                           SCRIPTS.parent / ".claude" / "skills" / "ntxp-form-fill" / "assets" / "gui")
+               if p.is_dir()), SCRIPTS.parent / "assets" / "gui")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/index.html": ("index.html", "text/html; charset=utf-8"),
           "/app.css": ("app.css", "text/css; charset=utf-8"),

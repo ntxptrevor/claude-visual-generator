@@ -346,7 +346,7 @@
   function openField(id, fromReview) {
     var i = S.order.findIndex(function (f) { return f.id === id; });
     if (i < 0) return;
-    commitOpenEditor(false).then(function () { focusField(i); });
+    commitOpenEditor(false).then(function () { focusField(i); }, function () {});
   }
   function acceptAndNext() {
     if (!S.editor) return;
@@ -364,7 +364,7 @@
     }).catch(function (e) { ed.showError(e.message); });
   }
   function goPrevious() {
-    if (S.cur > 0) commitOpenEditor(false).then(function () { focusField(S.cur - 1); });
+    if (S.cur > 0) commitOpenEditor(false).then(function () { focusField(S.cur - 1); }, function () {});
   }
 
   function sendField(body, f) {
@@ -389,7 +389,7 @@
     var body = { id: ed.field.id, value: v.value };
     if (approve) body.approve = true;
     if (v.image !== undefined) { if (v.image) body.image = v.image; else body.clear_image = true; }
-    return sendField(body, ed.field).catch(function (e) { toast("Not saved: " + e.message); });
+    return sendField(body, ed.field).catch(function (e) { toast("Not saved: " + e.message); throw e; });
   }
 
   // ------------------------------------------------------------------ editors
@@ -565,8 +565,11 @@
     var inked = false, drawing = false, last = null;
     var pctx = pad.getContext("2d");
     pctx.lineWidth = 4; pctx.lineCap = "round"; pctx.lineJoin = "round"; pctx.strokeStyle = "#000";
-    if (f.has_image && S.sigCache[f.id] && mode === "draw") {
-      var im = new Image(); im.onload = function () { pctx.drawImage(im, 0, 0, pad.width, pad.height); inked = true; }; im.src = S.sigCache[f.id];
+    var storedOnly = !!f.has_image && !S.sigCache[f.id];  // drawn earlier, before this page session
+    if (f.has_image && mode === "draw") {
+      var im = new Image();
+      im.onload = function () { pctx.drawImage(im, 0, 0, pad.width, pad.height); };
+      im.src = S.sigCache[f.id] || withToken("/api/field-image/" + f.id + ".png?v=" + Date.now());
     }
     function pt(ev) { var r = pad.getBoundingClientRect(); return { x: (ev.clientX - r.left) * pad.width / r.width, y: (ev.clientY - r.top) * pad.height / r.height }; }
     pad.addEventListener("pointerdown", function (ev) { ev.preventDefault(); pad.setPointerCapture(ev.pointerId); drawing = true; last = pt(ev); });
@@ -611,7 +614,9 @@
         renderTyped(off, text);
         return { value: text, image: off.toDataURL("image/png") };
       }
-      return inked ? { value: "", image: pad.toDataURL("image/png") } : { value: "", image: "" };
+      if (inked) return { value: "", image: pad.toDataURL("image/png") };
+      // Untouched stored drawing: undefined means "send nothing", so the image is kept.
+      return storedOnly ? { value: "", image: undefined } : { value: "", image: "" };
     };
     var startText = typed.value;
     ed.dirty = function () { return mode === "type" ? typed.value !== startText : inked; };

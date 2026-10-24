@@ -16,6 +16,8 @@ argument-hint: "[form | sync | scan | review]"
 Fills NTXP LLC's forms correctly, fast, with the owner in control of anything that matters.
 Architecture contract and tool choices: **`ARCHITECTURE.md`** (same folder). Business rules: `CLAUDE.md`.
 
+Command paths are from the repo root. In the Forge copy, the same scripts live in `scripts/` inside this skill folder.
+
 ---
 
 ## 1. TIER 1 RULES — NTXP Identity (owner directive, hard-coded)
