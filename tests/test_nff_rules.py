@@ -234,3 +234,10 @@ def test_label_forms_get_tier1_values_and_never_prices():
 def test_label_forms_require_detected_fields():
     with pytest.raises(ValueError):
         reg.build_answers("vendor_registration", STALE_KB)
+
+
+def test_known_workflow_does_not_borrow_other_maps():
+    import nff_workflow_registry as reg
+    # "Owner Name" on a vendor form must not resolve to the lien waiver's project owner.
+    assert reg.map_form_field_to_kb("Owner Name", "vendor_registration") == (None, 0)
+    assert reg.map_form_field_to_kb("Company Name", "vendor_registration")[0] == "company_name"

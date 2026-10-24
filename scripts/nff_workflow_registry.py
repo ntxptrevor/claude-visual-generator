@@ -459,6 +459,9 @@ def map_form_field_to_kb(form_field_label, form_type=None):
             for pattern, kb_field in wf["field_map"].items():
                 if re.search(pattern, form_field_label, re.IGNORECASE):
                     return (kb_field, 95)
+            # A known workflow answers only for its own labels; borrowing another form's map
+            # can prefill the wrong party (e.g. a client's name for "Owner Name").
+            return (None, 0)
 
     for wf_id, wf in WORKFLOWS.items():
         for pattern, kb_field in wf["field_map"].items():

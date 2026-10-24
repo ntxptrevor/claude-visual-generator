@@ -240,11 +240,13 @@ def _widgets(pdf_path):
                 if hasattr(normal, "keys"):
                     on_states = [str(k) for k in normal.keys() if str(k) != "/Off"]
             value = a.get("/V", parent.get("/V", ""))
+            radio = ft == "/Btn" and bool(ff & (1 << 15))
             out.append({"name": str(name), "page": pno, "rect": rect,
                         "kind": {"/Btn": "checkbox", "/Sig": "signature"}.get(ft, "text"),
                         "tooltip": str(a.get("/TU") or parent.get("/TU") or ""),
                         "required": bool(ff & 2), "on_states": on_states,
-                        "value": str(value or "")})
+                        "value": str(value or ""),
+                        "radio_group": str(parent.get("/T") or name) if radio else None})
     return out
 
 
@@ -330,7 +332,7 @@ def detect_fields(pdf_path):
         meta = acro_meta.get(w["name"], {})
         fields.append({"name": w["name"], "label": label, "near": near, "page": w["page"],
                        "rect": [round(v, 2) for v in w["rect"]], "origin": "acroform",
-                       "acro_kind": w["kind"], "on_states": w["on_states"],
+                       "acro_kind": w["kind"], "on_states": w["on_states"], "radio_group": w.get("radio_group"),
                        "required": w["required"] or bool(meta.get("required")),
                        "initial_value": w["value"]})
     for f in _flat_fields(pdf_path, widget_list, words):
@@ -477,6 +479,10 @@ def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=Fals
             if value:
                 source, conf = "pdf_existing", 0.9
                 reason = "value already in the PDF - review it"
+        if d.get("radio_group") and source != "pdf_existing":
+            # Options of one single-choice group: never auto-pick one; the owner chooses.
+            value, source, conf = "", None, 0.0
+            reason = "radio group - choose one option"
         if d.get("acro_kind") == "checkbox":
             value = _checkbox_value(value, d.get("on_states", []))
         elif ftype == "phone":
@@ -495,6 +501,7 @@ def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=Fals
                 reason = "no KB match"
         fields.append({
             "id": f"f{n}", "name": d["name"], "label": _readable_label(d, kb_field), "page": d["page"],
+            "radio_group": d.get("radio_group"),
             "rect": d["rect"], "type": ftype, "type_confidence": round(c["confidence"], 2),
             "type_referee": c.get("referee"), "value": value, "auto_value": value,
             "source": source, "kb_field": kb_field, "confidence": round(conf, 2),
@@ -780,6 +787,10 @@ def api_field(s, body):
         old = f["value"]
         if "value" in body:
             f["value"] = normalize_value(f["type"], body.get("value"))
+            if f.get("radio_group") and f["value"]:
+                for other in s.state["fields"]:
+                    if other is not f and other.get("radio_group") == f["radio_group"]:
+                        other["value"] = ""
         if f["type"] in SIGNED_TYPES:
             if body.get("clear_image"):
                 f["image_file"] = None
@@ -1067,6 +1078,10 @@ def api_signature_approve(s, body):
                 typed = re.sub(r"\s+", " ", str(f["value"]).strip().lower())
                 if typed not in (full.lower(), "/s/ " + full.lower()):
                     raise ApiError(400, f"Typed signature '{f['value']}' does not match signer {full}")
+            if f["type"] == "initials" and str(f.get("value") or "").strip():
+                letters = re.sub(r"[^a-z]", "", str(f["value"]).lower())
+                if letters != re.sub(r"[^a-z]", "", initials_of(full).lower()):
+                    raise ApiError(400, f"Initials '{f['value']}' do not match signer {full}")
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         unsigned = s.dir / f"unsigned_final_{ts}.pdf"
         s.write_pdf(unsigned, include_signatures=False)
