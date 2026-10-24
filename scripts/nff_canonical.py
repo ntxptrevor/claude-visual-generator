@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FormFlow canonical answers and JEV answer determination.
+NTXP Form Fill canonical answers and JEV answer determination.
 
 Canonical answers are the owner-approved values that forms reuse (bonding,
 insurance, W-9, ACH, contacts). For any field, several candidate values may
@@ -19,7 +19,7 @@ Banking fields (ACH) are always confidential: they never go to a model, are
 masked in logs, and a form that uses them needs Tier 3 approval to fill.
 
 Usage:
-    python formflow_canonical.py --determine candidates.json
+    python nff_canonical.py --determine candidates.json
 """
 
 import argparse
@@ -28,7 +28,7 @@ import re
 import sys
 from datetime import date, datetime
 
-from formflow_signatures import NTXP_IDENTITY, TIER1_FIELD_OVERRIDES
+from nff_signatures import NTXP_IDENTITY, TIER1_FIELD_OVERRIDES
 
 CANONICAL_HEADERS = [
     "answer_id", "exhibit", "category", "field_name", "field_value", "source_kind",
@@ -140,7 +140,7 @@ def canonical_values(decisions):
 
 
 def main():
-    p = argparse.ArgumentParser(description="FormFlow canonical answers (JEV determination)")
+    p = argparse.ArgumentParser(description="NTXP Form Fill canonical answers (JEV determination)")
     p.add_argument("--determine", required=True,
                    help='JSON {"candidates": {field: [...]}, "categories": {...}, "retired": {...}}')
     a = p.parse_args()

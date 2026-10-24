@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FormFlow Signature Appending System
+NTXP Form Fill Signature Appending System
 
 Manages digital signature placement on filled PDF forms.
 SECURITY: Alison Hopkins (Owner) is the designated signatory and default
@@ -9,12 +9,12 @@ circumstance requires it. Nobody else may sign. Every signature application
 requires Tier 3 manual approval within Claude before the document goes external.
 
 Usage (CLI):
-    python formflow_signatures.py --check "Alison Hopkins"
-    python formflow_signatures.py --list-signers
-    python formflow_signatures.py --request --document filled.pdf --placements p.json
-    python formflow_signatures.py --request --document filled.pdf --signer "Trevor Hopkins" \
+    python nff_signatures.py --check "Alison Hopkins"
+    python nff_signatures.py --list-signers
+    python nff_signatures.py --request --document filled.pdf --placements p.json
+    python nff_signatures.py --request --document filled.pdf --signer "Trevor Hopkins" \
         --circumstance "Alison unavailable before bid deadline" --placements p.json
-    python formflow_signatures.py --apply --document filled.pdf --output signed.pdf \
+    python nff_signatures.py --apply --document filled.pdf --output signed.pdf \
         --placements p.json --approval approval.json
 """
 
@@ -293,7 +293,7 @@ def generate_approval_request(document_name, form_type, signer_name,
 def build_signature_data(signer_name, include_date=True):
     """Build the data dict for signature field filling.
 
-    Returns field values to be passed to formflow_fill_pdf.py.
+    Returns field values to be passed to nff_fill_pdf.py.
     Does NOT apply them — that requires approval first.
     """
     validation = validate_signer(signer_name)
@@ -484,7 +484,7 @@ def list_signers():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Signature Manager")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Signature Manager")
     parser.add_argument("--check", type=str, help="Check if a name is authorized to sign")
     parser.add_argument("--list-signers", action="store_true", help="List authorized signers")
     parser.add_argument("--preview", action="store_true",
@@ -537,7 +537,7 @@ def main():
 
     elif args.list_signers:
         signers = list_signers()
-        print("\nAuthorized Signers — FormFlow Signature System")
+        print("\nAuthorized Signers — NTXP Form Fill Signature System")
         print("=" * 55)
         for s in signers:
             print(f"\n  {s['name']:25s} | {s['title']}")

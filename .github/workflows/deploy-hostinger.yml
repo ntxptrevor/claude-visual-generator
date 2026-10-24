@@ -1,4 +1,4 @@
-name: Deploy FormFlow to Hostinger
+name: Deploy NTXP Form Fill (legacy web page) to Hostinger
 
 on:
   push:

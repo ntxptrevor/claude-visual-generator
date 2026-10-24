@@ -7,10 +7,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import formflow_fill_pdf as fill  # noqa: E402
-import formflow_jev_router as jev  # noqa: E402
-import formflow_signatures as sig  # noqa: E402
-import formflow_workflow_registry as reg  # noqa: E402
+import nff_fill_pdf as fill  # noqa: E402
+import nff_jev_router as jev  # noqa: E402
+import nff_signatures as sig  # noqa: E402
+import nff_workflow_registry as reg  # noqa: E402
 
 STALE_KB = {
     "company_name": "NTXP Professional LLC",
@@ -153,7 +153,7 @@ def test_cli_writes_answers(tmp_path):
     import subprocess
     kb, out = tmp_path / "kb.json", tmp_path / "answers.json"
     kb.write_text(json.dumps(STALE_KB))
-    r = subprocess.run([sys.executable, str(ROOT / "scripts/formflow_workflow_registry.py"),
+    r = subprocess.run([sys.executable, str(ROOT / "scripts/nff_workflow_registry.py"),
                         "--answers", "w9", "--kb-json", str(kb), "--output", str(out)],
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
@@ -168,7 +168,7 @@ def test_numbered_folders_always_route_inside_the_project():
 
 
 def test_drive_scan_never_ingests_tier1_identity_fields():
-    import formflow_drive_scanner as ds
+    import nff_drive_scanner as ds
     text = ("Insured: NTXP LLC\nStreet/Mailing Address: 405 S Elm St Ste 203\n"
             "City: Denton State: TX Zip Code: 76201\nPhone number: (214) 555-0000")
     fields = {f["field_name"] for f in ds.extract_fields_from_text(text)}
@@ -234,3 +234,10 @@ def test_label_forms_get_tier1_values_and_never_prices():
 def test_label_forms_require_detected_fields():
     with pytest.raises(ValueError):
         reg.build_answers("vendor_registration", STALE_KB)
+
+
+def test_known_workflow_does_not_borrow_other_maps():
+    import nff_workflow_registry as reg
+    # "Owner Name" on a vendor form must not resolve to the lien waiver's project owner.
+    assert reg.map_form_field_to_kb("Owner Name", "vendor_registration") == (None, 0)
+    assert reg.map_form_field_to_kb("Company Name", "vendor_registration")[0] == "company_name"

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-FormFlow Sanity Check — Validates filled form fields for format correctness
+NTXP Form Fill Sanity Check — Validates filled form fields for format correctness
 and cross-field consistency.
 
 Usage:
-    python scripts/formflow_sanity_check.py \
+    python scripts/nff_sanity_check.py \
         --filled filled_fields.json \
         --kb kb_snapshot.json \
         --output-json sanity_report.json
@@ -234,7 +234,7 @@ def run_sanity_checks(fields, kb_entries=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Sanity Check")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Sanity Check")
     parser.add_argument("--filled", required=True, help="Filled fields JSON")
     parser.add_argument("--kb", help="KB snapshot JSON (optional)")
     parser.add_argument("--output-json", required=True, help="Output report JSON")
