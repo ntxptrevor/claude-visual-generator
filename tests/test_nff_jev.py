@@ -353,3 +353,15 @@ def test_portal_fill_plan_marks_submit_tier3():
     assert plan["steps"][2]["action"] == "pause_for_user" and "value" not in plan["steps"][2]
     assert plan["steps"][3]["tier"] == 3 and plan["steps"][3]["requires_approval"]
     assert plan["tier3_steps"] == [3]
+
+
+def test_required_radio_group_counts_once():
+    import nff_jev as jev
+    fields = [
+        {"name": "c1", "label": "Yes", "value": "", "required": True, "radio_group": "q1", "confidence": 0.9},
+        {"name": "c2", "label": "No", "value": "on", "required": True, "radio_group": "q1", "confidence": 0.9},
+    ]
+    out = jev.form_confidence(fields, [])
+    assert out["required_blank"] == 0
+    unchosen = [dict(f, value="") for f in fields]
+    assert jev.form_confidence(unchosen, [])["required_blank"] == 1

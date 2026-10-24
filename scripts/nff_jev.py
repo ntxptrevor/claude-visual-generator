@@ -487,7 +487,20 @@ def form_confidence(fields, checks):
     """
     fields, checks = fields or [], checks or []
     filled = [f for f in fields if str(f.get("value") or "").strip()]
-    required = [f for f in fields if f.get("required")]
+    # A required radio group is one unit, satisfied by any selected option.
+    picked_groups = {f.get("radio_group") for f in fields
+                     if f.get("radio_group") and str(f.get("value") or "").strip()}
+    required, seen_groups = [], set()
+    for f in fields:
+        if not f.get("required"):
+            continue
+        group = f.get("radio_group")
+        if not group:
+            required.append(f)
+        elif group not in seen_groups:
+            seen_groups.add(group)
+            required.append({"name": group, "label": f.get("label") or group,
+                             "value": "chosen" if group in picked_groups else ""})
     blank_req = [f for f in required if not str(f.get("value") or "").strip()]
 
     def gmean(vals):

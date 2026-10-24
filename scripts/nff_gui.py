@@ -972,7 +972,8 @@ def _review_fields(s):
     for f in s.state["fields"]:
         g = {"id": f["id"], "field_name": f["name"], "kb_field": f.get("kb_field") or f["name"],
              "name": f["name"], "label": f["label"], "type": f["type"], "value": f["value"],
-             "required": f.get("required", False), "user_entered": f.get("user_entered", False),
+             "required": f.get("required", False), "radio_group": f.get("radio_group"),
+             "user_entered": f.get("user_entered", False),
              "source": "user" if f.get("user_entered") else (f.get("source") or "manual")}
         if f["type"] in ("checkmark", "x_mark") and f.get("acro_kind") == "checkbox":
             g["value"] = (f.get("on_state") or "on") if f["value"] else ""
