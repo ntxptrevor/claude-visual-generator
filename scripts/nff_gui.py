@@ -358,6 +358,7 @@ def _checkbox_value(value, on_states):
 
 
 RETIRED_VALUES = ("405 S Elm St Ste 203", "405 S Elm St")
+CANONICAL_LIVE_STATUSES = ("canonical", "approved", "verified", "current")
 
 
 def resolve_canonical(rows, retired=RETIRED_VALUES):
@@ -373,8 +374,8 @@ def resolve_canonical(rows, retired=RETIRED_VALUES):
     can = optional("nff_canonical")
     groups, cats = {}, {}
     for r in rows or []:
-        if str(r.get("status", "")).lower() in ("rejected", "retired", "superseded"):
-            continue
+        if str(r.get("status", "")).lower() not in CANONICAL_LIVE_STATUSES:
+            continue  # pending, draft, conflict, missing, rejected, retired, superseded: never autofill
         name = r.get("field_name")
         if not name or r.get("field_value") in (None, ""):
             continue
@@ -601,7 +602,9 @@ class Session:
         home = Path(home) if home else nff_home()
         sid = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         sdir = home / "sessions" / sid
-        (sdir / "pages").mkdir(parents=True, exist_ok=True)
+        for d in (home, home / "sessions", sdir, sdir / "pages"):
+            d.mkdir(mode=0o700, parents=True, exist_ok=True)
+            os.chmod(d, 0o700)
         shutil.copyfile(pdf, sdir / "source.pdf")
         if kb is None or canonical is None:
             db, conn = db_conn()
@@ -1518,6 +1521,7 @@ def session_url(httpd):
 
 
 def main(argv=None):
+    os.umask(0o077)  # EIN, banking and signature data: every file this GUI writes is owner-only
     ap = argparse.ArgumentParser(description="NTXP Form Fill guided review GUI")
     ap.add_argument("--pdf", help="blank form PDF")
     ap.add_argument("--form-type", default=None)

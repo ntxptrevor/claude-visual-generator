@@ -435,3 +435,17 @@ def test_flat_form_keeps_repeated_labels_and_checkboxes(tmp_path):
     boxes = [f for f in fields if f["field_type"] == "checkbox"]
     assert {b["field_name_raw"] for b in boxes} == {"Yes", "No"}
     assert all("x1" in b["position"] and "y1" in b["position"] for b in boxes)
+
+
+def test_only_live_canonical_statuses_autofill():
+    rows = [
+        {"field_name": "gl_limit", "field_value": "1,000,000", "source_kind": "executed_doc",
+         "source_title": "ACORD", "category": "insurance", "status": "pending"},
+        {"field_name": "bond_limit", "field_value": "5,000,000", "source_kind": "executed_doc",
+         "source_title": "Bond letter", "category": "bonding", "status": "draft"},
+        {"field_name": "cage_code", "field_value": "8ABC1", "source_kind": "executed_doc",
+         "source_title": "Exhibit B", "category": "other", "status": "canonical"},
+    ]
+    values, _ = gui.resolve_canonical(rows)
+    assert "gl_limit" not in values and "bond_limit" not in values
+    assert values.get("cage_code") == "8ABC1"

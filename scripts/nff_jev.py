@@ -668,10 +668,20 @@ def review(session_state, conn=None, *, ai=True):
     if not any(c["id"].startswith("retired.") for c in checks):
         _check(checks, "retired.none", True, True, "No retired NTXP values found")
 
-    # Required blanks
+    # Required blanks. A required radio group is satisfied by choosing any one of its options.
+    chosen_groups = {f.get("radio_group") for f in fields
+                     if f.get("radio_group") and str(f.get("value") or "").strip()}
+    reported_groups = set()
     for f in fields:
-        if f.get("required") and not str(f.get("value") or "").strip():
-            _check(checks, f"required.{_fname(f)}", False, True, f"Required field '{_flabel(f)}' is blank")
+        if not f.get("required") or str(f.get("value") or "").strip():
+            continue
+        group = f.get("radio_group")
+        if group:
+            if group not in chosen_groups and group not in reported_groups:
+                reported_groups.add(group)
+                _check(checks, f"required.radio.{group}", False, True, f"Required choice '{group}' has no option selected")
+            continue
+        _check(checks, f"required.{_fname(f)}", False, True, f"Required field '{_flabel(f)}' is blank")
 
     # Formats
     for f in fields:
