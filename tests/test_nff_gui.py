@@ -413,3 +413,25 @@ def test_proposals_apply_records_change_log_and_queues_sheet_rows(server, monkey
     log = [r for r in nff_db.pending_sheet_changes(conn) if r["action"] == "approved_proposal"]
     assert log and log[-1]["field_name"] == "naics_codes"
     assert nff_db.list_proposals(conn, "pending") == []
+
+
+def test_flat_form_keeps_repeated_labels_and_checkboxes(tmp_path):
+    pytest.importorskip("pdfplumber")
+    import nff_detect_fields as det
+    from reportlab.pdfgen import canvas
+    pdf = tmp_path / "flat.pdf"
+    c = canvas.Canvas(str(pdf))
+    c.setFont("Helvetica", 11)
+    c.drawString(72, 700, "Date: ______________")
+    c.drawString(72, 660, "Name: ______________")
+    c.drawString(72, 620, "[ ] Yes     [ ] No")
+    c.showPage()
+    c.setFont("Helvetica", 11)
+    c.drawString(72, 700, "Date: ______________")
+    c.save()
+    fields = det.detect_visual_fields(str(pdf))
+    names = [f["field_name"] for f in fields]
+    assert "date" in names and "date_2" in names and len(set(names)) == len(names)
+    boxes = [f for f in fields if f["field_type"] == "checkbox"]
+    assert {b["field_name_raw"] for b in boxes} == {"Yes", "No"}
+    assert all("x1" in b["position"] and "y1" in b["position"] for b in boxes)

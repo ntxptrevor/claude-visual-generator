@@ -562,7 +562,7 @@
     wrap.appendChild(el("p", { cls: "gate-note", text: "Never auto-filled. Default signer: " + (S.st.default_signer || "Alison Hopkins") +
       ". Exported only after Tier 3 approval bound to the final document hash (Trevor Hopkins needs a stated circumstance)." }));
 
-    var inked = false, drawing = false, last = null;
+    var inked = false, drawing = false, last = null, cleared = false;
     var pctx = pad.getContext("2d");
     pctx.lineWidth = 4; pctx.lineCap = "round"; pctx.lineJoin = "round"; pctx.strokeStyle = "#000";
     var storedOnly = !!f.has_image && !S.sigCache[f.id];  // drawn earlier, before this page session
@@ -575,10 +575,10 @@
     pad.addEventListener("pointerdown", function (ev) { ev.preventDefault(); pad.setPointerCapture(ev.pointerId); drawing = true; last = pt(ev); });
     pad.addEventListener("pointermove", function (ev) {
       if (!drawing) return; var p = pt(ev);
-      pctx.beginPath(); pctx.moveTo(last.x, last.y); pctx.lineTo(p.x, p.y); pctx.stroke(); last = p; inked = true;
+      pctx.beginPath(); pctx.moveTo(last.x, last.y); pctx.lineTo(p.x, p.y); pctx.stroke(); last = p; inked = true; cleared = false;
     });
     pad.addEventListener("pointerup", function () { drawing = false; });
-    clearBtn.addEventListener("click", function () { pctx.clearRect(0, 0, pad.width, pad.height); inked = false; });
+    clearBtn.addEventListener("click", function () { pctx.clearRect(0, 0, pad.width, pad.height); inked = false; cleared = true; });
 
     function renderTyped(canvas, text) {
       var c = canvas.getContext("2d");
@@ -616,10 +616,10 @@
       }
       if (inked) return { value: "", image: pad.toDataURL("image/png") };
       // Untouched stored drawing: undefined means "send nothing", so the image is kept.
-      return storedOnly ? { value: "", image: undefined } : { value: "", image: "" };
+      return storedOnly && !cleared ? { value: "", image: undefined } : { value: "", image: "" };
     };
     var startText = typed.value;
-    ed.dirty = function () { return mode === "type" ? typed.value !== startText : inked; };
+    ed.dirty = function () { return mode === "type" ? typed.value !== startText : (inked || cleared); };
   }
 
   function removeField(f) {

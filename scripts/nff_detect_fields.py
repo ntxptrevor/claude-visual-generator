@@ -153,6 +153,49 @@ def _blank_fields_on_page(page, page_num):
     return found
 
 
+CHECKBOX_BOX_RE = re.compile(r"^[\[\(\{]\s*[xX]?\s*[\]\)\}]?$|^[\u2610\u25a1]$")
+CLOSING_BOX_RE = re.compile(r"^[\]\)\}]$")
+
+
+def _unique_name(name, seen):
+    """Repeated labels ('Date', 'Name') stay separate fields: the second becomes 'date_2'."""
+    unique, n = name, 1
+    while unique in seen:
+        n += 1
+        unique = f"{name}_{n}"
+    seen.add(unique)
+    return unique
+
+
+def _checkbox_fields(page, page_num):
+    """Empty boxes ('[ ] Label', '( ) Label', 'Label [ ]') with the position just after the box."""
+    page_h = float(page.height)
+    found = []
+    for row in _lines(page.extract_words(keep_blank_chars=False)):
+        for i, box in enumerate(row):
+            if not CHECKBOX_BOX_RE.match(box["text"]):
+                continue
+            label = []
+            for nxt in row[i + 1:]:
+                if CHECKBOX_BOX_RE.match(nxt["text"]) or len(label) >= 6:
+                    break
+                if not CLOSING_BOX_RE.match(nxt["text"]):
+                    label.append(nxt["text"])
+            name = " ".join(label).strip(" .:")
+            if len(name) < 2:
+                continue
+            found.append({
+                "field_name": re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_"),
+                "field_name_raw": name,
+                "field_type": "checkbox",
+                "current_value": "",
+                "page": page_num,
+                "position": {"x1": round(box["x1"] + 2, 1), "y1": round(page_h - box["bottom"] + 1, 1)},
+                "detection_method": "visual_checkbox",
+            })
+    return found
+
+
 def detect_visual_fields(file_path):
     try:
         import pdfplumber
@@ -165,31 +208,9 @@ def detect_visual_fields(file_path):
 
     with pdfplumber.open(file_path) as pdf:
         for page_num, page in enumerate(pdf.pages, 1):
-            for f in _blank_fields_on_page(page, page_num):
-                if f["field_name"] not in seen_names:
-                    seen_names.add(f["field_name"])
-                    fields.append(f)
-
-            text = page.extract_text() or ""
-            for line in (ln.strip() for ln in text.split("\n")):
-                if not line:
-                    continue
-                checkbox = re.findall(
-                    r"[\[\(\{]\s*[\]\)\}]\s*([A-Za-z][A-Za-z\s]{2,30})",
-                    line
-                )
-                for cb_label in checkbox:
-                    norm = re.sub(r"\s+", "_", cb_label.strip()).lower()
-                    if norm not in seen_names:
-                        seen_names.add(norm)
-                        fields.append({
-                            "field_name": norm,
-                            "field_name_raw": cb_label.strip(),
-                            "field_type": "checkbox",
-                            "current_value": "",
-                            "page": page_num,
-                            "detection_method": "visual_checkbox",
-                        })
+            for f in _blank_fields_on_page(page, page_num) + _checkbox_fields(page, page_num):
+                f["field_name"] = _unique_name(f["field_name"], seen_names)
+                fields.append(f)
 
     return fields
 

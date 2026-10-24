@@ -285,7 +285,8 @@ def apply_proposals(conn, ids, approve_tier3=False, user="", writer=None):
     """Build Sheet rows for approved proposals. When `writer` is given (e.g. append_live) it runs
     before anything is marked approved, so a failed write leaves the proposals pending and retryable."""
     props = {p["proposal_id"]: p for p in db.list_proposals(conn, "all")}
-    canon_rows, kb_rows, applied, skipped = [], [], [], []
+    canon_rows, kb_rows, skipped = [], [], []
+    canon_group, kb_group = [], []
     today, stamp = datetime.now().strftime("%Y-%m-%d"), db.now()
     for i in ids:
         p = props.get(i)
@@ -299,22 +300,31 @@ def apply_proposals(conn, ids, approve_tier3=False, user="", writer=None):
         if p["category"].lower() in CANONICAL_CATEGORIES:
             canon_rows.append([f"scan-{i}", "", p["category"], p["field_name"], val, "drive_scan", p["source_title"],
                                p["source_ref"], today, "approved", user, stamp, "approved from scan proposal"])
+            canon_group.append(p)
         else:
             kb_rows.append([uuid.uuid4().hex[:8], p["category"], p["field_name"], val,
                             scanner._infer_field_type(p["field_name"], val), 75, "drive_scan", "", 0, "", "",
                             stamp, stamp])
-        applied.append(p)
-    out = {"applied": [p["proposal_id"] for p in applied], "skipped": skipped,
+            kb_group.append(p)
+    out = {"applied": [], "skipped": skipped,
            "canonical": {"headers": can.CANONICAL_HEADERS, "rows": canon_rows},
            "kb": {"headers": KB_HEADERS, "rows": kb_rows}}
-    if writer and (canon_rows or kb_rows):
-        writer(out)
-    for p in applied:
-        db.set_proposal_status(conn, [p["proposal_id"]], "approved")
-        db.record_change(conn, field_name=p["field_name"], old_value=can.mask(p["current_value"], p["category"]),
-                         new_value=can.mask(p["proposed_value"], p["category"]), action="approved_proposal",
-                         decision="saved", user=user,
-                         notes=f"scan proposal {p['proposal_id']} from {p['source_title']}")
+    # One Sheet tab at a time. A tab's proposals are marked approved only after that tab's own
+    # append succeeds, so a retry after a later failure never repeats rows that already landed.
+    for tab, group in (("canonical", canon_group), ("kb", kb_group)):
+        if not group:
+            continue
+        if writer:
+            writer({"applied": [p["proposal_id"] for p in group], "skipped": skipped,
+                    "canonical": {"headers": can.CANONICAL_HEADERS, "rows": canon_rows if tab == "canonical" else []},
+                    "kb": {"headers": KB_HEADERS, "rows": kb_rows if tab == "kb" else []}})
+        for p in group:
+            db.set_proposal_status(conn, [p["proposal_id"]], "approved")
+            db.record_change(conn, field_name=p["field_name"], old_value=can.mask(p["current_value"], p["category"]),
+                             new_value=can.mask(p["proposed_value"], p["category"]), action="approved_proposal",
+                             decision="saved", user=user,
+                             notes=f"scan proposal {p['proposal_id']} from {p['source_title']}")
+            out["applied"].append(p["proposal_id"])
     return out
 
 
@@ -408,12 +418,14 @@ def collect_live(conn, days, company_folder, bids_folder):
     items = []
 
     def walk(folder, depth=2):
+        # A new final response inside an old folder does not move the folder's own modifiedTime,
+        # so folders are always walked and only the files are date-filtered.
         out = []
-        for f in _list(drive, f"'{folder}' in parents and trashed=false and modifiedTime > '{since}'"):
+        for f in _list(drive, f"'{folder}' in parents and trashed=false"):
             if f["mimeType"] == FOLDER_MIME:
                 if depth > 1:
                     out += walk(f["id"], depth - 1)
-            else:
+            elif f.get("modifiedTime", "") > since:
                 out.append(f)
         return out
 
@@ -430,8 +442,7 @@ def collect_live(conn, days, company_folder, bids_folder):
     try:
         for f in walk(company_folder):
             add(f, "company_docs")
-        for sub in _list(drive, f"'{bids_folder}' in parents and trashed=false and mimeType='{FOLDER_MIME}'"
-                                f" and modifiedTime > '{since}'"):
+        for sub in _list(drive, f"'{bids_folder}' in parents and trashed=false and mimeType='{FOLDER_MIME}'"):
             files = walk(sub["id"])
             finals = [f for f in files if FINAL_RE.search(f["name"])]
             picks = finals[:1] + [f for f in files if KB_FILE_RE.search(f["name"]) and f not in finals[:1]]

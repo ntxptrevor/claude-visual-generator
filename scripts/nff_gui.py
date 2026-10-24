@@ -1264,11 +1264,13 @@ def api_proposals_apply(s, body):
         sheet = {"status": "nothing_to_write", "row_count": 0}
 
         def write_first(o):
-            # Runs before anything is marked approved: if the rows can be neither written nor
-            # queued, the proposals stay pending and the user can retry.
-            sheet.update(queue_sheet_append(s, scan, o))
-            if sheet["status"] == "not_queued":
-                raise ApiError(500, sheet.get("error", "could not write or queue Sheet rows"))
+            # Runs once per Sheet tab, before that tab's proposals are marked approved: if the rows
+            # can be neither written nor queued, those proposals stay pending and the user can retry.
+            res = queue_sheet_append(s, scan, o)
+            sheet["row_count"] = sheet.get("row_count", 0) + res.get("row_count", 0)
+            sheet.update({k: v for k, v in res.items() if k != "row_count"})
+            if res["status"] == "not_queued":
+                raise ApiError(500, res.get("error", "could not write or queue Sheet rows"))
 
         try:
             out = scan.apply_proposals(conn, ids, approve_tier3=False, user=os.environ.get("NFF_USER", ""),
