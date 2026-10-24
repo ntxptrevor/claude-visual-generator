@@ -449,3 +449,10 @@ def test_only_live_canonical_statuses_autofill():
     values, _ = gui.resolve_canonical(rows)
     assert "gl_limit" not in values and "bond_limit" not in values
     assert values.get("cage_code") == "8ABC1"
+
+
+def test_unresolved_canonical_fields_are_held_not_filled():
+    rows = [{"field_name": "gl_limit", "field_value": "1,000,000", "source_kind": "executed_doc",
+             "source_title": "ACORD", "category": "insurance", "status": "pending"}]
+    values, held = gui.resolve_canonical(rows)
+    assert "gl_limit" not in values and held["gl_limit"]["status"] == "pending"

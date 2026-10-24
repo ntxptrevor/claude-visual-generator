@@ -365,3 +365,13 @@ def test_required_radio_group_counts_once():
     assert out["required_blank"] == 0
     unchosen = [dict(f, value="") for f in fields]
     assert jev.form_confidence(unchosen, [])["required_blank"] == 1
+
+
+def test_raw_off_radio_values_are_unselected():
+    import nff_jev as jev
+    unselected = [{"name": "c1", "label": "Yes", "value": "/Off", "required": True, "radio_group": "q1", "confidence": 0.9},
+                  {"name": "c2", "label": "No", "value": "/Off", "required": True, "radio_group": "q1", "confidence": 0.9}]
+    review = jev.review({"fields": unselected, "checks": []}, None, ai=False)
+    assert any(c["id"] == "required.radio.q1" and not c["passed"] for c in review["checks"])
+    out = jev.form_confidence(unselected, [])
+    assert out["filled"] == 0 and out["required_blank"] == 1

@@ -486,10 +486,11 @@ def form_confidence(fields, checks):
     checks: [{"id", "passed", "blocking", "message", "advisory"?}]
     """
     fields, checks = fields or [], checks or []
-    filled = [f for f in fields if str(f.get("value") or "").strip()]
+    filled = [f for f in fields if str(f.get("value") or "").strip()
+              and not (f.get("radio_group") and not _checked(f.get("value")))]
     # A required radio group is one unit, satisfied by any selected option.
     picked_groups = {f.get("radio_group") for f in fields
-                     if f.get("radio_group") and str(f.get("value") or "").strip()}
+                     if f.get("radio_group") and _checked(f.get("value"))}
     required, seen_groups = [], set()
     for f in fields:
         if not f.get("required"):
@@ -683,16 +684,18 @@ def review(session_state, conn=None, *, ai=True):
 
     # Required blanks. A required radio group is satisfied by choosing any one of its options.
     chosen_groups = {f.get("radio_group") for f in fields
-                     if f.get("radio_group") and str(f.get("value") or "").strip()}
+                     if f.get("radio_group") and _checked(f.get("value"))}
     reported_groups = set()
     for f in fields:
-        if not f.get("required") or str(f.get("value") or "").strip():
+        if not f.get("required"):
             continue
         group = f.get("radio_group")
         if group:
             if group not in chosen_groups and group not in reported_groups:
                 reported_groups.add(group)
                 _check(checks, f"required.radio.{group}", False, True, f"Required choice '{group}' has no option selected")
+            continue
+        if str(f.get("value") or "").strip():
             continue
         _check(checks, f"required.{_fname(f)}", False, True, f"Required field '{_flabel(f)}' is blank")
 

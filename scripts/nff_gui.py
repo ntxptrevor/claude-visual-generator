@@ -372,11 +372,15 @@ def resolve_canonical(rows, retired=RETIRED_VALUES):
     if isinstance(rows, dict):
         return {k: v for k, v in rows.items() if v not in (None, "")}, {}
     can = optional("nff_canonical")
-    groups, cats = {}, {}
+    groups, cats, unresolved = {}, {}, {}
     for r in rows or []:
-        if str(r.get("status", "")).lower() not in CANONICAL_LIVE_STATUSES:
-            continue  # pending, draft, conflict, missing, rejected, retired, superseded: never autofill
+        status = str(r.get("status", "")).lower()
         name = r.get("field_name")
+        if status not in CANONICAL_LIVE_STATUSES:
+            # Never autofill from these, and hold the field so a lower-priority KB value cannot fill it.
+            if name:
+                unresolved.setdefault(name, status or "unresolved")
+            continue
         if not name or r.get("field_value") in (None, ""):
             continue
         groups.setdefault(name, []).append(
@@ -396,6 +400,9 @@ def resolve_canonical(rows, retired=RETIRED_VALUES):
             values[name] = d["value"]
         else:
             held[name] = {"status": d["status"], "basis": d.get("basis", ""), "jev_tier": d.get("jev_tier")}
+    for name, status in unresolved.items():
+        if name not in groups:
+            held[name] = {"status": status, "basis": "not owner-approved - owner reviews"}
     return values, held
 
 
