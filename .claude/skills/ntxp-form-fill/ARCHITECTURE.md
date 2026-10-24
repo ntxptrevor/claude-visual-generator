@@ -9,7 +9,7 @@ Python 3.10+. Repo root on `sys.path`; scripts live in `scripts/`, the GUI front
 | Need | Choice | Why |
 |---|---|---|
 | Internal database | **SQLite** (Python stdlib `sqlite3`, WAL mode) | Fastest free embedded DB, zero install, single file, transactional. |
-| Source of truth | Private Google Sheet **NTXP Form Filler Database** (`1KYFkZoEWNvbAYqZ0Vq4LOUPh9QM4MiIYyqPmDyIelQA`) in `! NTXP Knowledge Base / Admin Tools / NTXP Form Filler Skill` | Owner-editable; synced **one way** Sheet → SQLite. |
+| Source of truth | Private Google Sheet **NTXP Form Fill Database** (`1KYFkZoEWNvbAYqZ0Vq4LOUPh9QM4MiIYyqPmDyIelQA`) in `! NTXP Knowledge Base / Admin Tools / NTXP Form Fill Skill` | Owner-editable; synced **one way** Sheet → SQLite. |
 | PDF page render (live view) | **pypdfium2** (PDFium, Apache-2.0/BSD) | Fast, permissive license, pip wheel, no system deps. |
 | PDF read/write, AcroForm | **pypdf** | Already used; pure Python. |
 | Text/marks overlay, final output | **reportlab** | Already used; built-in Helvetica (metric-equivalent to Arial). |

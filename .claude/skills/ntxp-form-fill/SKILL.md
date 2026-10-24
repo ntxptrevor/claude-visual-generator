@@ -1,6 +1,6 @@
 ---
 name: ntxp-form-fill
-description: "NTXP Form Fill - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Opens a guided review GUI with the live PDF, every field highlighted, field-by-field auto-scroll, page approve buttons, save/ignore prompts for manual edits, and a confidence score. Fills from the NTXP Form Filler Database (private Google Sheet synced to a local SQLite DB) and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules. Prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, scan Drive for form answers, sync the form database."
+description: "NTXP Form Fill - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Opens a guided review GUI with the live PDF, every field highlighted, field-by-field auto-scroll, page approve buttons, save/ignore prompts for manual edits, and a confidence score. Fills from the NTXP Form Fill Database (private Google Sheet synced to a local SQLite DB) and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules. Prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, scan Drive for form answers, sync the form database."
 version: 3.0.0
 owner: NTXP
 requires:
@@ -63,10 +63,10 @@ Headless fallback (no GUI possible): `nff_workflow_registry.py --answers <type> 
 
 ---
 
-## 3. The NTXP Form Filler Database
+## 3. The NTXP Form Fill Database
 
-**Source of truth:** private Google Sheet **NTXP Form Filler Database**
-`1KYFkZoEWNvbAYqZ0Vq4LOUPh9QM4MiIYyqPmDyIelQA`, in `! NTXP Knowledge Base / Admin Tools / NTXP Form Filler Skill`.
+**Source of truth:** private Google Sheet **NTXP Form Fill Database**
+`1KYFkZoEWNvbAYqZ0Vq4LOUPh9QM4MiIYyqPmDyIelQA`, in `! NTXP Knowledge Base / Admin Tools / NTXP Form Fill Skill`.
 
 | Tab | Holds |
 |---|---|
