@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler manual Drive scan -> proposals -> one-page checklist -> approved rows.
+NTXP Form Fill manual Drive scan -> proposals -> one-page checklist -> approved rows.
 
   python scripts/nff_scan.py --from-manifest docs.json [--days 30]     # [{id,title,mimeType,modifiedTime,folder,text}]
   python scripts/nff_scan.py --live [--days 30] [--company-folder ID] [--bids-folder ID]
@@ -247,7 +247,7 @@ def write_checklist(proposals, out_dir=None):
         "<style>@page{size:8.5in 11in;margin:.5in}body{font:11px Helvetica,Arial,sans-serif;max-width:7.5in;margin:auto}"
         "h1{text-align:center;font-size:18px;margin:0}p.sub{text-align:center;margin:2px 0 10px}"
         "h2{font-size:11px;border-bottom:1px solid #000;margin:8px 0 3px}.row{display:block;padding:1px 0}"
-        "</style></head><body><h1>NTXP Form Filler - Scan Checklist</h1>"
+        "</style></head><body><h1>NTXP Form Fill - Scan Checklist</h1>"
         f"<p class='sub'><b>{stamp}</b> - {len(proposals)} proposal(s) - check a line, then Apply approved</p>"
         + "\n".join(li) + (f"<p><b>{more}</b></p>" if more else "") + "</body></html>")
     html_path = out_dir / f"checklist-{stamp}.html"
@@ -257,7 +257,7 @@ def write_checklist(proposals, out_dir=None):
     from reportlab.pdfgen import canvas
     c = canvas.Canvas(str(pdf_path), pagesize=(PAGE_W, PAGE_H))
     c.setFont("Helvetica-Bold", 16)
-    c.drawCentredString(PAGE_W / 2, PAGE_H - 50, "NTXP Form Filler - Scan Checklist")
+    c.drawCentredString(PAGE_W / 2, PAGE_H - 50, "NTXP Form Fill - Scan Checklist")
     c.setFont("Helvetica-Bold", 9)
     c.drawCentredString(PAGE_W / 2, PAGE_H - 66, f"{stamp}  |  {len(proposals)} proposal(s)  |  check a line, then Apply approved")
     y = PAGE_H - 90
@@ -446,7 +446,7 @@ def collect_live(conn, days, company_folder, bids_folder):
 
 # ------------------------------------------------------------------ CLI
 def main(argv=None):
-    p = argparse.ArgumentParser(description="NTXP Form Filler Drive scan")
+    p = argparse.ArgumentParser(description="NTXP Form Fill Drive scan")
     src = p.add_mutually_exclusive_group()
     src.add_argument("--live", action="store_true")
     src.add_argument("--from-manifest", metavar="FILE")

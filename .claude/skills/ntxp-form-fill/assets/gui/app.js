@@ -1,4 +1,4 @@
-/* NTXP Form Filler guided review GUI. Vanilla JS, no frameworks, no CDN.
+/* NTXP Form Fill guided review GUI. Vanilla JS, no frameworks, no CDN.
  * Every value from the server is inserted with textContent / attributes only (never innerHTML).
  */
 (function () {
@@ -125,7 +125,7 @@
     return api("GET", "/api/session").then(function (st) {
       S.st = st;
       $("formName").textContent = st.form_name + (st.form_type ? " (" + st.form_type + ")" : "");
-      document.title = "NTXP Form Filler | " + st.form_name;
+      document.title = "NTXP Form Fill | " + st.form_name;
       var sel = $("fieldType");
       clear(sel);
       st.field_types.forEach(function (t) { sel.appendChild(el("option", { value: t, text: TYPE_LABELS[t] || t })); });
@@ -639,7 +639,7 @@
     $("saveCardOld").textContent = q.old ? q.old : "(empty)";
     $("saveCardNew").textContent = q.value;
     $("saveCard").hidden = false;
-    announce("Save this answer to the NTXP Form Filler database? " + q.label + ": " + (q.old || "empty") + " changed to " + q.value);
+    announce("Save this answer to the NTXP Form Fill database? " + q.label + ": " + (q.old || "empty") + " changed to " + q.value);
   }
   function decideSave(decision) {
     var q = S.saveShown; if (!q) return;

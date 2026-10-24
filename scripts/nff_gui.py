@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler guided review GUI (contract: .claude/skills/ntxp-form-filler/ARCHITECTURE.md).
+NTXP Form Fill guided review GUI (contract: .claude/skills/ntxp-form-fill/ARCHITECTURE.md).
 
     python3 scripts/nff_gui.py --pdf blank.pdf [--form-type w9] [--kb-json kb.json]
         [--canonical-json c.json] [--port 8765] [--no-browser] [--resume SESSION_ID]
@@ -43,7 +43,7 @@ if str(SCRIPTS) not in sys.path:
 import nff_render as render  # noqa: E402
 from nff_render import format_currency, format_date, format_phone, initials_of  # noqa: E402,F401
 
-ASSETS = SCRIPTS.parent / ".claude" / "skills" / "ntxp-form-filler" / "assets" / "gui"
+ASSETS = SCRIPTS.parent / ".claude" / "skills" / "ntxp-form-fill" / "assets" / "gui"
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/index.html": ("index.html", "text/html; charset=utf-8"),
           "/app.css": ("app.css", "text/css; charset=utf-8"),
@@ -1476,7 +1476,7 @@ def session_url(httpd):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="NTXP Form Filler guided review GUI")
+    ap = argparse.ArgumentParser(description="NTXP Form Fill guided review GUI")
     ap.add_argument("--pdf", help="blank form PDF")
     ap.add_argument("--form-type", default=None)
     ap.add_argument("--kb-json", default=None, help="KB values {field_name: value}")

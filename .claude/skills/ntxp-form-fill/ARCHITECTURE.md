@@ -1,8 +1,8 @@
-# NTXP Form Filler — Architecture Contract (v3)
+# NTXP Form Fill — Architecture Contract (v3)
 
 Single source of truth for the components below. Change this file first, then the code.
 Python 3.10+. Repo root on `sys.path`; scripts live in `scripts/`, the GUI front end in
-`.claude/skills/ntxp-form-filler/assets/gui/`.
+`.claude/skills/ntxp-form-fill/assets/gui/`.
 
 ## Tool choices (decided)
 

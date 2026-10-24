@@ -10,7 +10,7 @@ document ingestion or form filling.
 - **Labels**: Bold text with clear visual distinction
 - **Organization**: Side-by-side comparison with color coding
 - **Theme**: Warning amber (#d69e2e) for conflicts, blue/green for resolved
-- **Branding**: "NTXP Form Filler by NTXP LLC" footer
+- **Branding**: "NTXP Form Fill by NTXP LLC" footer
 
 ## Artifact Structure
 

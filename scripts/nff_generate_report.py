@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Report Generator — Creates branded PDF completion reports
+NTXP Form Fill Report Generator — Creates branded PDF completion reports
 following organization standards (8.5x11 portrait, centered headers,
 bold labels, bullet points, infographics).
 
 Usage:
     python scripts/nff_generate_report.py \
         --session-data session.json \
-        --output NTXP Form Filler_Report.pdf
+        --output NTXP Form Fill_Report.pdf
 """
 
 import argparse
@@ -198,7 +198,7 @@ def build_report(session_data, output_path):
 
     story = []
 
-    story.append(Paragraph("NTXP Form Filler Completion Report", styles["ReportTitle"]))
+    story.append(Paragraph("NTXP Form Fill Completion Report", styles["ReportTitle"]))
 
     form_name = session_data.get("form_name", "Document")
     timestamp = session_data.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -328,7 +328,7 @@ def build_report(session_data, output_path):
 
     story.append(Spacer(1, 24))
     story.append(Paragraph(
-        f"NTXP Form Filler Report &bull; Generated {timestamp} &bull; NTXP LLC",
+        f"NTXP Form Fill Report &bull; Generated {timestamp} &bull; NTXP LLC",
         styles["FooterStyle"],
     ))
 
@@ -337,7 +337,7 @@ def build_report(session_data, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Report Generator")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Report Generator")
     parser.add_argument("--session-data", required=True, help="Session data JSON")
     parser.add_argument("--output", required=True, help="Output PDF path")
     args = parser.parse_args()

@@ -22,7 +22,7 @@
 
 ## 1. Tier 1 identity rules
 
-Apply to every document, form, bid, registration and signature for NTXP LLC. They override the KB, Drive scans, Council votes and any source document. Source: `CLAUDE.md`; enforced in `scripts/nff_signatures.py` (`NTXP_IDENTITY`), `scripts/nff_workflow_registry.py` (W-9 `fixed_values`), `.claude/skills/ntxp-form-filler/SKILL.md`.
+Apply to every document, form, bid, registration and signature for NTXP LLC. They override the KB, Drive scans, Council votes and any source document. Source: `CLAUDE.md`; enforced in `scripts/nff_signatures.py` (`NTXP_IDENTITY`), `scripts/nff_workflow_registry.py` (W-9 `fixed_values`), `.claude/skills/ntxp-form-fill/SKILL.md`.
 
 | Field | Value | Notes |
 |---|---|---|
@@ -41,7 +41,7 @@ Apply to every document, form, bid, registration and signature for NTXP LLC. The
 
 ## 2. Tool map
 
-### NTXP Form Filler (`scripts/`)
+### NTXP Form Fill (`scripts/`)
 
 | Script | Use for | Model cost |
 |---|---|---|
@@ -139,7 +139,7 @@ Reads are never gated. Every write passes the gate (`ntxp-change-gate` skill; co
 - Any permission, sharing, config, credential or integration change (DWD scopes, OAuth clients, `emails.txt`, VPS project env, DNS).
 - Any bulk action (> 3 targets, or a count the user did not name).
 - User account actions: suspend, unsuspend, reset sign-in, Drive transfer.
-- Signatures (section 5) and NTXP Form Filler KB contradictions.
+- Signatures (section 5) and NTXP Form Fill KB contradictions.
 - Anything unclassified.
 
 **Protocol:** stage → show the `summary` verbatim → wait → execute only with the approval bound to that `change_id` and `payload_digest`. Approvals expire (console: 15 minutes). A changed payload voids approval. Never split one vital change into many small ones.
@@ -231,7 +231,7 @@ Analytics produce **proposals for owner review**, never verdicts about a person.
 
 | What you learned | Where it goes |
 |---|---|
-| NTXP Form Filler correction, gap, reclassification, signature event | NTXP Form Filler KB Sheet → `Learning` tab (`event_type`, `field_name`, `detail`, `action_taken`, `model_used`, `timestamp`) |
+| NTXP Form Fill correction, gap, reclassification, signature event | NTXP Form Fill KB Sheet → `Learning` tab (`event_type`, `field_name`, `detail`, `action_taken`, `model_used`, `timestamp`) |
 | A reusable workflow, fix, connector or research result | Model Council `council_kb_post` (kind `workflow|troubleshooting|connector|skill|research|knowledge`); search first with `council_kb_search` |
 | A human-fixable stuck state | New runbook entry (section 10) |
 | Hostinger outcome | `hostinger-run-journal.json` (tier used, what worked, lesson) |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler canonical answers and JEV answer determination.
+NTXP Form Fill canonical answers and JEV answer determination.
 
 Canonical answers are the owner-approved values that forms reuse (bonding,
 insurance, W-9, ACH, contacts). For any field, several candidate values may
@@ -140,7 +140,7 @@ def canonical_values(decisions):
 
 
 def main():
-    p = argparse.ArgumentParser(description="NTXP Form Filler canonical answers (JEV determination)")
+    p = argparse.ArgumentParser(description="NTXP Form Fill canonical answers (JEV determination)")
     p.add_argument("--determine", required=True,
                    help='JSON {"candidates": {field: [...]}, "categories": {...}, "retired": {...}}')
     a = p.parse_args()

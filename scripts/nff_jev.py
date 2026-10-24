@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler JEV-1 decision layer (contract: .claude/skills/ntxp-form-filler/ARCHITECTURE.md,
+NTXP Form Fill JEV-1 decision layer (contract: .claude/skills/ntxp-form-fill/ARCHITECTURE.md,
 section "JEV-1 layer"). Pure Python stdlib.
 
 Public API:

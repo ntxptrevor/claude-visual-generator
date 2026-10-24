@@ -1,10 +1,10 @@
 ---
-name: ntxp-form-filler
-description: "NTXP Form Filler - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Opens a guided review GUI with the live PDF, every field highlighted, field-by-field auto-scroll, page approve buttons, save/ignore prompts for manual edits, and a confidence score. Fills from the NTXP Form Filler Database (private Google Sheet synced to a local SQLite DB) and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules. Prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, scan Drive for form answers, sync the form database."
+name: ntxp-form-fill
+description: "NTXP Form Fill - NTXP LLC's form filler. Use whenever a form, questionnaire or bid/RFP package must be filled for NTXP: W-9, Conflict of Interest Questionnaire (CIQ), vendor or SAM registration, bid/proposal forms, insurance certificates, lien waivers, HUB/MBE forms, NDAs, credit applications, daily reports. Opens a guided review GUI with the live PDF, every field highlighted, field-by-field auto-scroll, page approve buttons, save/ignore prompts for manual edits, and a confidence score. Fills from the NTXP Form Filler Database (private Google Sheet synced to a local SQLite DB) and canonical answers (Exhibit A insurance/bonding, B W-9, C ACH), always enforcing the NTXP Tier 1 rules. Prices and signatures are never auto-filled; signatures, external sends and banking are Tier 3 owner approvals. Trigger on: fill this form, complete the W-9, do the CIQ, bid package, RFP forms, vendor registration, scan Drive for form answers, sync the form database."
 skills: ntxp-model-router, ntxp-model-council, ntxp-change-gate, ntxp-folder-system, ntxp-secrets-vault
 ---
 
-# NTXP Form Filler
+# NTXP Form Fill
 
 Fills NTXP LLC's forms correctly, fast, with the owner in control of anything that matters.
 Architecture contract and tool choices: **`ARCHITECTURE.md`** (same folder). Business rules: `CLAUDE.md`.
@@ -245,7 +245,7 @@ or a PDF. Confidential forms never go to non-Claude seats. Plans: `scripts/nff_o
 ## 13. Files
 
 ```
-.claude/skills/ntxp-form-filler/
+.claude/skills/ntxp-form-fill/
   SKILL.md, ARCHITECTURE.md, assets/gui/ (index.html, app.css, app.js), assets/output_template/
 scripts/
   nff_gui.py, nff_render.py          guided GUI server, page render, PDF export

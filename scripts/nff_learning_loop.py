@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Self-Learning Loop
+NTXP Form Fill Self-Learning Loop
 
 Monitors skill usage, seeks ways to fill DB gaps, corrects fields/types
 that commonly need human correction, and consults the Model Council.
@@ -361,7 +361,7 @@ def build_learning_rows(actions):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Self-Learning Loop")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Self-Learning Loop")
     parser.add_argument("--analyze", action="store_true", help="Run full analysis")
     parser.add_argument("--digest", action="store_true", help="Generate digest")
     parser.add_argument("--kb", type=str, help="Path to KB entries JSON")
@@ -396,7 +396,7 @@ def main():
                 print(json.dumps(digest, indent=2))
             else:
                 print(f"\n{'='*50}")
-                print(f"  NTXP Form Filler Learning Loop Digest")
+                print(f"  NTXP Form Fill Learning Loop Digest")
                 print(f"{'='*50}")
                 print(f"\n  {digest['summary']}")
                 print(f"  Estimated cost: {digest['estimated_cost']}")

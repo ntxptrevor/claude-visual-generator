@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Prewired Workflow Registry
+NTXP Form Fill Prewired Workflow Registry
 
 Manages the mapping of known form types to their field-to-KB bindings,
 save locations, and JEV tier assignments. Used by the skill to achieve
@@ -631,7 +631,7 @@ def get_categories():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Workflow Registry")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Workflow Registry")
     parser.add_argument("--match", type=str, help="Match a filename to a workflow")
     parser.add_argument("--list", action="store_true", help="List all workflows")
     parser.add_argument("--category", type=str, default=None,
@@ -688,7 +688,7 @@ def main():
         if not workflows:
             print("No workflows found.")
         else:
-            print(f"\nNTXP Form Filler Prewired Workflows"
+            print(f"\nNTXP Form Fill Prewired Workflows"
                   f"{' (' + args.category + ')' if args.category else ''}")
             print("=" * 60)
             for wf in workflows:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Google Sheets KB Database Operations
+NTXP Form Fill Google Sheets KB Database Operations
 
 Replaces Supabase with a URL-accessible Google Sheet as the knowledge base.
 All CRUD operations go through Google Sheets MCP tools.
@@ -445,7 +445,7 @@ def compute_session_stats(session_rows):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Google Sheets KB Operations")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Google Sheets KB Operations")
     parser.add_argument("--action", choices=["setup", "export", "stats", "seed-workflows"],
                         required=True)
     parser.add_argument("--output", default=None, help="Output file for export")

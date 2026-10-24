@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler PDF Filler — Fills detected PDF form fields with KB answers
+NTXP Form Fill PDF Filler — Fills detected PDF form fields with KB answers
 and produces a completed PDF output.
 
 Usage:
@@ -169,7 +169,7 @@ def fill_with_overlay(form_path, answers, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler PDF Filler")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill PDF Filler")
     parser.add_argument("--form", required=True, help="Original PDF form")
     parser.add_argument("--answers", required=True, help="JSON file with field answers")
     parser.add_argument("--output", required=True, help="Output filled PDF path")

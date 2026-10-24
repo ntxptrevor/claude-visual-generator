@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Field Detector — Detects form fields in PDF documents using
+NTXP Form Fill Field Detector — Detects form fields in PDF documents using
 AcroForm extraction and visual pattern recognition.
 
 Usage:
@@ -206,7 +206,7 @@ def merge_fields(acroform_fields, visual_fields):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Field Detector")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Field Detector")
     parser.add_argument("--form", required=True, help="Path to PDF form")
     parser.add_argument("--output-json", required=True, help="Output JSON file")
     args = parser.parse_args()

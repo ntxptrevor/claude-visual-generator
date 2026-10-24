@@ -1,4 +1,4 @@
-"""Tests for the NTXP Form Filler review GUI server (scripts/nff_gui.py) and export (nff_render.py)."""
+"""Tests for the NTXP Form Fill review GUI server (scripts/nff_gui.py) and export (nff_render.py)."""
 
 import http.client
 import json
@@ -147,7 +147,7 @@ def test_token_required_on_every_api_route(server):
 
 def test_static_files_and_headers(server):
     status, body, r = call(server, "GET", "/", token=None)
-    assert status == 200 and b"NTXP Form Filler" in body
+    assert status == 200 and b"NTXP Form Fill" in body
     assert "script-src 'self'" in r.getheader("Content-Security-Policy")
     assert r.getheader("Referrer-Policy") == "no-referrer"
     status, _, _ = call(server, "GET", "/app.js", token=None)

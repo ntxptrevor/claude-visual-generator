@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler sync: Google Sheet -> SQLite (one way, the Sheet wins).
+NTXP Form Fill sync: Google Sheet -> SQLite (one way, the Sheet wins).
 
   python scripts/nff_sync.py --from-json tabs.json      # {tab: [[header...], [row...]]} (Sheets MCP get_values)
   python scripts/nff_sync.py --from-csv-dir DIR          # KB.csv, Canonical.csv, Workflows.csv [, Settings.csv]
@@ -247,7 +247,7 @@ def push_live(conn, ids, rows):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="NTXP Form Filler Sheet -> SQLite sync")
+    p = argparse.ArgumentParser(description="NTXP Form Fill Sheet -> SQLite sync")
     src = p.add_mutually_exclusive_group()
     src.add_argument("--live", action="store_true", help="use the Sheets API (NTXP_GOOGLE_* env)")
     src.add_argument("--from-json", metavar="FILE")

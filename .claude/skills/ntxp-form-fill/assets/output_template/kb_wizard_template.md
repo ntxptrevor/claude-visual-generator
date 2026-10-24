@@ -1,6 +1,6 @@
 # KB Setup Wizard — Artifact Template
 
-Generate an interactive HTML artifact for the NTXP Form Filler Knowledge Base setup wizard.
+Generate an interactive HTML artifact for the NTXP Form Fill Knowledge Base setup wizard.
 This artifact walks the user through initial KB population via Q&A cards.
 
 ## Design Requirements
@@ -10,7 +10,7 @@ This artifact walks the user through initial KB population via Q&A cards.
 - **Labels**: Bold text for all field labels
 - **Organization**: Bullet points and clear section labeling
 - **Theme**: Professional blue (#1a365d primary, #2b6cb0 secondary, #38a169 accent)
-- **Branding**: "NTXP Form Filler by NTXP LLC" footer
+- **Branding**: "NTXP Form Fill by NTXP LLC" footer
 
 ## Artifact Structure
 

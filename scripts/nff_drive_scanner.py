@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Drive KB Prefill Scanner
+NTXP Form Fill Drive KB Prefill Scanner
 
 Scans NTXP Google Drive for completed forms, applications, registrations,
 licenses, RFP responses, and contracts to extract field values and seed
-the NTXP Form Filler Knowledge Base.
+the NTXP Form Fill Knowledge Base.
 
 Designed for JEV-optimized scanning:
   - Tier 0: Regex on filename/metadata ($0)
@@ -381,7 +381,7 @@ def generate_scan_plan():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Drive KB Prefill Scanner")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Drive KB Prefill Scanner")
     parser.add_argument("--classify", type=str, help="Classify a filename")
     parser.add_argument("--scan-plan", action="store_true", help="Show scan plan")
     parser.add_argument("--extract-text", type=str, help="Extract fields from text")
@@ -402,7 +402,7 @@ def main():
         if args.output_json:
             print(json.dumps(plan, indent=2))
         else:
-            print("NTXP Form Filler Drive Scan Plan")
+            print("NTXP Form Fill Drive Scan Plan")
             print("=" * 50)
             for loc in plan["locations"]:
                 print(f"\n  [{loc['priority']}] {loc['path']}")

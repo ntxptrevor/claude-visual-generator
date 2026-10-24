@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler local database (SQLite, stdlib only, WAL).
+NTXP Form Fill local database (SQLite, stdlib only, WAL).
 
-Schema and public API follow .claude/skills/ntxp-form-filler/ARCHITECTURE.md.
+Schema and public API follow .claude/skills/ntxp-form-fill/ARCHITECTURE.md.
 The database lives outside the repo: NFF_HOME/nff.sqlite (NFF_HOME defaults to ~/.ntxp/nff).
 It holds EIN and banking data, so values in confidential categories (banking, tax_id) are never
 printed unmasked: pass masked=True to kb_values / canonical_rows for anything that is logged.

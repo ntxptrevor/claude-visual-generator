@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler page rendering and final PDF export (contract: ARCHITECTURE.md).
+NTXP Form Fill page rendering and final PDF export (contract: ARCHITECTURE.md).
 
 - render_pages(): pypdfium2 page images (PNG, 2x) for the GUI live view.
 - page_sizes(): page widths/heights in PDF points.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NTXP Form Filler Signature Appending System
+NTXP Form Fill Signature Appending System
 
 Manages digital signature placement on filled PDF forms.
 SECURITY: Alison Hopkins (Owner) is the designated signatory and default
@@ -484,7 +484,7 @@ def list_signers():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NTXP Form Filler Signature Manager")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Signature Manager")
     parser.add_argument("--check", type=str, help="Check if a name is authorized to sign")
     parser.add_argument("--list-signers", action="store_true", help="List authorized signers")
     parser.add_argument("--preview", action="store_true",
@@ -537,7 +537,7 @@ def main():
 
     elif args.list_signers:
         signers = list_signers()
-        print("\nAuthorized Signers — NTXP Form Filler Signature System")
+        print("\nAuthorized Signers — NTXP Form Fill Signature System")
         print("=" * 55)
         for s in signers:
             print(f"\n  {s['name']:25s} | {s['title']}")
