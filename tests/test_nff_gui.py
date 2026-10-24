@@ -328,3 +328,88 @@ def test_scan_and_proposals_degrade_gracefully(server):
     assert status == 200 and isinstance(data["proposals"], list)
     status, data, _ = call(server, "POST", "/api/proposals/apply", {"ids": "all"})
     assert status == 400
+
+
+# ----------------------------------------------------------------- review findings (PR #5)
+
+def test_canonical_conflicts_are_held_not_autofilled(tmp_path):
+    rows = [
+        {"field_name": "naics_codes", "field_value": "236220", "source_kind": "owner_canonical",
+         "source_title": "Exhibit A", "category": "other", "status": "approved"},
+        {"field_name": "naics_codes", "field_value": "238160", "source_kind": "owner_canonical",
+         "source_title": "SAM profile", "category": "other", "status": "approved"},
+        {"field_name": "cage_code", "field_value": "8ABC1", "source_kind": "owner_canonical",
+         "source_title": "Exhibit B", "category": "other", "status": "approved"},
+        {"field_name": "cage_code", "field_value": "8ABC1", "source_kind": "kb_manual",
+         "source_title": "KB", "category": "other", "status": "approved"},
+        {"field_name": "routing_number", "field_value": "111000025", "source_kind": "owner_canonical",
+         "source_title": "Exhibit C", "category": "banking", "status": "approved"},
+    ]
+    values, held = gui.resolve_canonical(rows)
+    assert values == {"cage_code": "8ABC1"}
+    assert held["naics_codes"]["status"] == "conflict"
+    assert "routing_number" in held  # banking is Tier 3: never autofilled
+
+    from reportlab.pdfgen import canvas
+    pdf = tmp_path / "sam.pdf"
+    c = canvas.Canvas(str(pdf))
+    c.setFont("Helvetica", 11)
+    c.drawString(72, 700, "NAICS Codes: ______________________")
+    c.drawString(72, 660, "CAGE Code: ______________________")
+    c.save()
+    # The KB also has a (third) NAICS value: a held field must not fall back to it.
+    fields, _, _ = gui.build_fields(pdf, "sam_registration", kb={"naics_codes": "999999"},
+                                    canonical=values, held=held)
+    by = {x["label"]: x for x in fields}
+    assert by["NAICS Codes"]["value"] == "" and by["NAICS Codes"]["state"] == "review"
+    assert "conflict" in by["NAICS Codes"]["reason"]
+    assert by["CAGE Code"]["value"] == "8ABC1" and by["CAGE Code"]["state"] == "auto"
+
+
+def test_prefilled_acroform_values_survive_flatten(tmp_path, monkeypatch):
+    monkeypatch.setenv("NFF_HOME", str(tmp_path / "home"))
+    from reportlab.pdfgen import canvas
+    pdf = tmp_path / "prefilled.pdf"
+    c = canvas.Canvas(str(pdf))
+    c.setFont("Helvetica", 11)
+    c.drawString(72, 700, "Purchase Order:")
+    c.acroForm.textfield(name="po_number", x=200, y=694, width=200, height=18, value="PO-7781 Prefilled")
+    c.acroForm.checkbox(name="union_job", x=72, y=650, size=14, checked=True)
+    c.drawString(92, 653, "Union job")
+    c.save()
+    s = gui.Session.create(str(pdf), home=tmp_path / "home")
+    by = {f["name"]: f for f in s.state["fields"]}
+    assert by["po_number"]["value"] == "PO-7781 Prefilled" and by["po_number"]["state"] == "review"
+    assert by["union_job"]["value"] == "on"
+    out = gui.api_stop(s)["path"]
+    from pypdf import PdfReader
+    text = "\n".join(p.extract_text() or "" for p in PdfReader(out).pages)
+    assert "PO-7781 Prefilled" in text
+    # A widget the overlay does not draw keeps its existing appearance.
+    kept = tmp_path / "kept.pdf"
+    render.export_pdf(pdf, [], [], kept)
+    text = "\n".join(p.extract_text() or "" for p in PdfReader(str(kept)).pages)
+    assert "PO-7781 Prefilled" in text
+
+
+def test_proposals_apply_records_change_log_and_queues_sheet_rows(server, monkeypatch):
+    import nff_db
+    if gui.optional("nff_scan") is None:
+        pytest.skip("nff_scan not installed")
+    for k in ("NTXP_GOOGLE_SA_KEY", "NTXP_GOOGLE_SA_EMAIL", "NTXP_GOOGLE_ADMIN_SUBJECT"):
+        monkeypatch.delenv(k, raising=False)
+    conn = nff_db.connect()
+    nff_db.add_proposals(conn, [{"proposal_id": "p1", "field_name": "naics_codes", "proposed_value": "236220",
+                                 "current_value": "", "category": "other", "evidence": "[NEW]",
+                                 "source_title": "Final RFP response.pdf", "source_ref": "drive:1"}])
+    status, data, _ = call(server, "POST", "/api/proposals/apply", {"ids": ["p1"]})
+    assert status == 200, data
+    assert data["applied"] == ["p1"]
+    sheet = data["sheet"]
+    assert sheet["row_count"] == 1 and (sheet["rows"]["KB"] or sheet["rows"]["Canonical"])
+    assert sheet["status"] in ("appended_live", "queued_for_agent")
+    if sheet["status"] == "queued_for_agent":
+        assert sheet["written"] is False and Path(sheet["queue_file"]).is_file()
+    log = [r for r in nff_db.pending_sheet_changes(conn) if r["action"] == "approved_proposal"]
+    assert log and log[-1]["field_name"] == "naics_codes"
+    assert nff_db.list_proposals(conn, "pending") == []

@@ -881,8 +881,12 @@
     var ids = Array.prototype.map.call($("proposalList").querySelectorAll("input[type=checkbox]:checked"), function (c) { return c.getAttribute("data-id"); });
     if (!ids.length) { $("propResult").textContent = "Check at least one line to apply."; return; }
     api("POST", "/api/proposals/apply", { ids: ids }).then(function (r) {
-      $("propResult").textContent = "Applied " + r.applied.length + "; skipped " + r.skipped.length + "." +
-        (r.sheet_rows_file ? " Sheet rows queued: " + r.sheet_rows_file : "");
+      var sh = r.sheet || {}, msg = "Approved " + r.applied.length + "; skipped " + r.skipped.length + ".";
+      if (sh.status === "appended_live") msg += " Written to the Sheet: " + sh.row_count + " row(s).";
+      else if (sh.status === "queued_for_agent") msg += " " + sh.row_count + " Sheet row(s) queued for Claude to append (" + sh.queue_file + ").";
+      else if (sh.status === "not_queued") msg += " Sheet rows NOT queued: " + (sh.error || "");
+      (r.skipped || []).forEach(function (k) { msg += " Skipped " + k.id + ": " + k.reason + "."; });
+      $("propResult").textContent = msg;
       return loadProposals();
     }).catch(function (e) { $("propResult").textContent = "Error: " + e.message; });
   }

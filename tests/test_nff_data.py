@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -175,3 +176,29 @@ def test_apply(seeded, tmp_path, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["canonical"]["rows"][0][3] == "routing_number" and out["canonical"]["rows"][0][9] == "approved"
     assert len(out["canonical"]["rows"][0]) == len(out["canonical"]["headers"])
+
+
+def test_failed_live_write_stays_pending(seeded):
+    db.add_proposals(seeded, scan.build_proposals(seeded, DOCS, 30))
+    pid = {p["field_name"]: p for p in db.list_proposals(seeded)}["email"]["proposal_id"]
+
+    def boom(out):
+        raise RuntimeError("Could not append to KB tab: expired credentials")
+
+    with pytest.raises(RuntimeError):
+        scan.apply_proposals(seeded, [pid], writer=boom)
+    assert pid in {p["proposal_id"] for p in db.list_proposals(seeded, "pending")}
+    assert not seeded.execute("SELECT 1 FROM change_log WHERE action='approved_proposal'").fetchone()
+    out = scan.apply_proposals(seeded, [pid], writer=lambda o: None)
+    assert out["applied"] == [pid]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permissions")
+def test_db_files_owner_only(tmp_path):
+    p = tmp_path / "home" / "nff.sqlite"
+    c = db.connect(p)
+    c.execute("INSERT INTO sync_state(key, value) VALUES('k','v')")
+    c.commit()
+    assert (p.parent.stat().st_mode & 0o777) == 0o700
+    assert (p.stat().st_mode & 0o777) == 0o600
+    c.close()

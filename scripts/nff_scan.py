@@ -281,7 +281,9 @@ def write_checklist(proposals, out_dir=None):
 
 
 # ------------------------------------------------------------------ apply
-def apply_proposals(conn, ids, approve_tier3=False, user=""):
+def apply_proposals(conn, ids, approve_tier3=False, user="", writer=None):
+    """Build Sheet rows for approved proposals. When `writer` is given (e.g. append_live) it runs
+    before anything is marked approved, so a failed write leaves the proposals pending and retryable."""
     props = {p["proposal_id"]: p for p in db.list_proposals(conn, "all")}
     canon_rows, kb_rows, applied, skipped = [], [], [], []
     today, stamp = datetime.now().strftime("%Y-%m-%d"), db.now()
@@ -301,14 +303,19 @@ def apply_proposals(conn, ids, approve_tier3=False, user=""):
             kb_rows.append([uuid.uuid4().hex[:8], p["category"], p["field_name"], val,
                             scanner._infer_field_type(p["field_name"], val), 75, "drive_scan", "", 0, "", "",
                             stamp, stamp])
-        db.set_proposal_status(conn, [i], "approved")
+        applied.append(p)
+    out = {"applied": [p["proposal_id"] for p in applied], "skipped": skipped,
+           "canonical": {"headers": can.CANONICAL_HEADERS, "rows": canon_rows},
+           "kb": {"headers": KB_HEADERS, "rows": kb_rows}}
+    if writer and (canon_rows or kb_rows):
+        writer(out)
+    for p in applied:
+        db.set_proposal_status(conn, [p["proposal_id"]], "approved")
         db.record_change(conn, field_name=p["field_name"], old_value=can.mask(p["current_value"], p["category"]),
-                         new_value=can.mask(val, p["category"]), action="approved_proposal", decision="saved",
-                         user=user, notes=f"scan proposal {i} from {p['source_title']}")
-        applied.append(i)
-    return {"applied": applied, "skipped": skipped,
-            "canonical": {"headers": can.CANONICAL_HEADERS, "rows": canon_rows},
-            "kb": {"headers": KB_HEADERS, "rows": kb_rows}}
+                         new_value=can.mask(p["proposed_value"], p["category"]), action="approved_proposal",
+                         decision="saved", user=user,
+                         notes=f"scan proposal {p['proposal_id']} from {p['source_title']}")
+    return out
 
 
 def mask_apply_output(out):
@@ -459,9 +466,8 @@ def main(argv=None):
             return 0
         if a.apply:
             ids = [i for i in re.split(r"[,\s]+", a.apply) if i]
-            out = apply_proposals(conn, ids, a.approve_tier3, a.user)
+            out = apply_proposals(conn, ids, a.approve_tier3, a.user, writer=append_live if a.live else None)
             if a.live and (out["canonical"]["rows"] or out["kb"]["rows"]):
-                append_live(out)
                 print(json.dumps({"appended_live": True, "applied": out["applied"], "skipped": out["skipped"]}, indent=2))
             else:
                 print(json.dumps(out if a.approve_tier3 else mask_apply_output(out), indent=2, ensure_ascii=False))

@@ -70,13 +70,20 @@ def mask(value, category):
 
 def connect(path=None):
     p = Path(path) if path else db_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(p))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.executescript(SCHEMA)
-    conn.commit()
+    p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    old_umask = os.umask(0o077)  # DB holds banking and tax-id values: owner-only files
+    try:
+        conn = sqlite3.connect(str(p))
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.executescript(SCHEMA)
+        conn.commit()
+    finally:
+        os.umask(old_umask)
+    for f in (p, Path(f"{p}-wal"), Path(f"{p}-shm")):
+        if f.exists():
+            os.chmod(f, 0o600)
     return conn
 
 

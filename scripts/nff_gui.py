@@ -330,9 +330,55 @@ def _checkbox_value(value, on_states):
     return ""
 
 
-def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=False):
-    """Detect, answer (Tier 1 enforced) and classify. Returns (fields, form_type, manual_notes)."""
+RETIRED_VALUES = ("405 S Elm St Ste 203", "405 S Elm St")
+
+
+def resolve_canonical(rows, retired=RETIRED_VALUES):
+    """Group canonical candidates per field and settle each with nff_canonical.determine().
+
+    rows: canonical rows ({field_name, field_value, source_kind, source_title, source_ref,
+    source_date, category, status}) or a plain {field: value} dict (already settled).
+    Returns (values, held): values autofill; held = {field: decision} for conflicts, missing,
+    stale or Tier 3 (confidential) answers, which must not autofill (shown as review).
+    """
+    if isinstance(rows, dict):
+        return {k: v for k, v in rows.items() if v not in (None, "")}, {}
+    can = optional("nff_canonical")
+    groups, cats = {}, {}
+    for r in rows or []:
+        if str(r.get("status", "")).lower() in ("rejected", "retired", "superseded"):
+            continue
+        name = r.get("field_name")
+        if not name or r.get("field_value") in (None, ""):
+            continue
+        groups.setdefault(name, []).append(
+            {k: r.get(k) for k in ("field_value", "source_kind", "source_title", "source_ref", "source_date")})
+        cats.setdefault(name, (r.get("category") or "other").lower())
+    values, held = {}, {}
+    for name, cands in groups.items():
+        if can is None:
+            distinct = {str(c["field_value"]).strip().lower() for c in cands}
+            if len(distinct) == 1:
+                values[name] = cands[0]["field_value"]
+            else:
+                held[name] = {"status": "conflict", "basis": "sources disagree - owner decides"}
+            continue
+        d = can.determine(name, cands, cats[name], retired)
+        if d["status"] == "canonical" and d.get("jev_tier", 0) == 0 and d.get("value") not in (None, ""):
+            values[name] = d["value"]
+        else:
+            held[name] = {"status": d["status"], "basis": d.get("basis", ""), "jev_tier": d.get("jev_tier")}
+    return values, held
+
+
+def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=False, held=None):
+    """Detect, answer (Tier 1 enforced) and classify. Returns (fields, form_type, manual_notes).
+
+    held: {kb_field: decision} canonical answers that need the owner (conflict, missing,
+    stale, Tier 3). Those fields are never autofilled; they are shown in the review state.
+    """
     import nff_workflow_registry as reg
+    held = held or {}
     detected = detect_fields(pdf_path)
     if not form_type:
         wf = reg.match_workflow(Path(pdf_path).name)
@@ -370,13 +416,28 @@ def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=Fals
             value, source, conf = "", None, 0.0
             reason = ("price or money commitment - owner enters it" if ftype == "currency"
                       else "signature - Tier 3 signature step only")
+        hold = held.get(kb_field) if kb_field else None
+        if hold and source != "tier1":
+            value, source, conf = "", "canonical_" + str(hold.get("status")), 0.0
+            reason = f"canonical answer {hold.get('status')}: {hold.get('basis', '')} - owner reviews"
+        initial = str(d.get("initial_value") or "")
+        if not value and not (ans is not None and ans.get("clear")) and initial and ftype != "signature":
+            # The PDF already carries this value: keep it so flattening never drops it.
+            value = initial if d.get("acro_kind") != "checkbox" else _checkbox_value(initial, d.get("on_states", []))
+            if value:
+                source, conf = "pdf_existing", 0.9
+                reason = "value already in the PDF - review it"
         if d.get("acro_kind") == "checkbox":
             value = _checkbox_value(value, d.get("on_states", []))
         elif ftype == "phone":
             value = format_phone(value)
         elif ftype == "date":
             value = format_date(value)
-        if ans is not None and (value or ans.get("clear")):
+        if hold and source != "tier1" and source != "pdf_existing":
+            state = "review"
+        elif source == "pdf_existing":
+            state = "review"
+        elif ans is not None and (value or ans.get("clear")):
             state = "auto" if conf >= 0.95 else "review"
         else:
             state = "manual"
@@ -492,15 +553,14 @@ class Session:
                     if kb is None:
                         kb = db.kb_values(conn)
                     if canonical is None:
-                        canonical = {r["field_name"]: r["field_value"] for r in db.canonical_rows(conn)
-                                     if str(r.get("status", "")).lower() not in
-                                     ("rejected", "retired", "conflict", "superseded")}
+                        canonical = db.canonical_rows(conn)
                 except Exception:
                     pass
                 finally:
                     conn.close()
-        fields, form_type, notes = build_fields(sdir / "source.pdf", form_type, kb or {}, canonical or {},
-                                                use_llm)
+        canonical, held = resolve_canonical(canonical or {})
+        fields, form_type, notes = build_fields(sdir / "source.pdf", form_type, kb or {}, canonical,
+                                                use_llm, held=held)
         sizes = render.page_sizes(sdir / "source.pdf")
         render.render_pages(sdir / "source.pdf", sdir / "pages", scale=2.0)
         state = {
@@ -508,7 +568,7 @@ class Session:
             "form_name": Path(pdf).name, "form_type": form_type, "created_at": now_iso(),
             "pages": [{"n": i + 1, **s} for i, s in enumerate(sizes)],
             "fields": fields, "highlights": [], "notes": notes,
-            "canonical": canonical or {}, "signature_approval": None, "review": None,
+            "canonical": canonical or {}, "canonical_held": held, "signature_approval": None, "review": None,
             "exports": [], "progress": [], "completed": False,
             "default_signer": _default_signer(),
         }
@@ -1130,6 +1190,37 @@ def api_proposals(s):
     return {"ok": True, "proposals": rows}
 
 
+def queue_sheet_append(s, scan, out):
+    """Write approved proposal rows to the Sheet, or queue them for the agent. Never claims
+    a Sheet write that did not happen."""
+    masked = scan.mask_apply_output(out) if hasattr(scan, "mask_apply_output") else out
+    rows = {"Canonical": masked["canonical"]["rows"], "KB": masked["kb"]["rows"]}
+    count = len(rows["Canonical"]) + len(rows["KB"])
+    result = {"status": "nothing_to_write", "rows": rows, "row_count": count,
+              "change_log": "nff_db.change_log (action=approved_proposal, pending push)"}
+    if not count:
+        return result
+    try:
+        scan.append_live(out)
+        result.update(status="appended_live", written=True)
+        return result
+    except Exception as e:  # no live credentials: queue for the Sheets connector
+        result["live_error"] = str(e)[:200]
+    qfile = s.home / "sheet_append_queue.jsonl"
+    try:
+        qfile.parent.mkdir(parents=True, exist_ok=True)
+        with open(qfile, "a") as fh:
+            fh.write(json.dumps({"queued_at": now_iso(), "session_id": s.state["session_id"],
+                                 "canonical": out["canonical"], "kb": out["kb"],
+                                 "applied": out["applied"]}) + "\n")
+    except OSError as e:
+        result.update(status="not_queued", written=False, error=f"could not queue rows: {e}")
+        return result
+    result.update(status="queued_for_agent", written=False, queue_file=str(qfile))
+    emit(f"NFF_SHEET_APPEND: {qfile}")
+    return result
+
+
 def api_proposals_apply(s, body):
     ids = body.get("ids")
     if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
@@ -1139,17 +1230,27 @@ def api_proposals_apply(s, body):
     scan = optional("nff_scan")
     db, conn = db_conn()
     if conn is not None and scan is not None:
+        # Same code path as `nff_scan.py --apply`: the Canonical/KB rows go to the Sheet live
+        # when credentials exist, else into the agent append queue; only then is each proposal
+        # marked approved with a change_log row (action=approved_proposal, pushed_to_sheet=0).
+        sheet = {"status": "nothing_to_write", "row_count": 0}
+
+        def write_first(o):
+            # Runs before anything is marked approved: if the rows can be neither written nor
+            # queued, the proposals stay pending and the user can retry.
+            sheet.update(queue_sheet_append(s, scan, o))
+            if sheet["status"] == "not_queued":
+                raise ApiError(500, sheet.get("error", "could not write or queue Sheet rows"))
+
         try:
-            out = scan.apply_proposals(conn, ids, approve_tier3=False, user=os.environ.get("NFF_USER", ""))
+            out = scan.apply_proposals(conn, ids, approve_tier3=False, user=os.environ.get("NFF_USER", ""),
+                                       writer=write_first)
         finally:
             conn.close()
-        qdir = s.home / "proposals"
-        qdir.mkdir(parents=True, exist_ok=True)
-        qfile = qdir / f"approved_{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
-        qfile.write_text(json.dumps(out, indent=2))
-        s.audit("proposals_applied", applied=out["applied"], skipped=len(out["skipped"]))
-        return {"ok": True, "applied": out["applied"], "skipped": out["skipped"],
-                "sheet_rows_file": str(qfile)}
+        s.audit("proposals_applied", applied=out["applied"], skipped=len(out["skipped"]),
+                sheet=sheet["status"])
+        return {"ok": True, "approved": out["applied"], "applied": out["applied"],
+                "skipped": out["skipped"], "sheet": sheet}
     f = _fallback_proposals_file(s)
     if not f.is_file():
         raise ApiError(404, "no proposals")

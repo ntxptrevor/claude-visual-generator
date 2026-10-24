@@ -308,8 +308,14 @@ def _draw_highlight(c, hl):
     c.restoreState()
 
 
-def _flatten_widgets(writer, page):
-    """Merge blank widget appearances into the page content, then remove the widgets."""
+def _flatten_widgets(writer, page, drawn=None):
+    """Merge widget appearances into the page content, then remove the widgets.
+
+    drawn: names of fields whose current value the overlay draws. For those only the blank
+    appearance (border/background, checkbox "Off") is kept, so the value is not printed
+    twice. Any other widget keeps its existing appearance (its populated /V stays visible).
+    drawn=None treats every widget as drawn.
+    """
     from pypdf.generic import (ArrayObject, DecodedStreamObject, DictionaryObject,
                                NameObject)
     annots = page.get("/Annots")
@@ -330,6 +336,8 @@ def _flatten_widgets(writer, page):
         parent = a.get("/Parent")
         parent = parent.get_object() if parent is not None else {}
         ft = a.get("/FT") or parent.get("/FT")
+        wname = str(a.get("/T") or parent.get("/T") or "")
+        ours = drawn is None or wname in drawn
         ap = a.get("/AP")
         if not ap:
             continue
@@ -340,13 +348,14 @@ def _flatten_widgets(writer, page):
         normal = normal.get_object()
         stream_ref = None
         if ft == "/Btn":
-            if hasattr(normal, "keys") and "/Off" in normal:
-                stream_ref = normal.raw_get("/Off")
+            state = "/Off" if ours else str(a.get("/AS") or "/Off")
+            if hasattr(normal, "keys") and state in normal:
+                stream_ref = normal.raw_get(state)
             elif hasattr(normal, "get_data"):
                 stream_ref = normal_ref
         else:
             value = a.get("/V", parent.get("/V", ""))
-            if hasattr(normal, "get_data") and not str(value or "").strip():
+            if hasattr(normal, "get_data") and (not ours or not str(value or "").strip()):
                 stream_ref = normal_ref
         if stream_ref is None:
             continue
@@ -413,8 +422,9 @@ def export_pdf(src_pdf, fields, highlights, out_path, include_signatures=False,
         by_page.setdefault(int(hl.get("page", 1)), {"f": [], "h": []})["h"].append(hl)
 
     drawn = 0
+    ours = {str(f.get("name")) for f in fields or [] if f.get("origin") == "acroform"}
     for idx, page in enumerate(writer.pages, start=1):
-        _flatten_widgets(writer, page)
+        _flatten_widgets(writer, page, ours)
         items = by_page.get(idx)
         if not items:
             continue
