@@ -248,7 +248,18 @@ def _widgets(pdf_path):
     return out
 
 
-def _flat_fields(pdf_path, pages_with_widgets, words_by_page):
+def _overlaps_widget(rect, widgets, page):
+    x0, y0, x1, y1 = rect
+    for w in widgets:
+        if w["page"] != page:
+            continue
+        a, b, c, d = w["rect"]
+        if x0 < c and a < x1 and y0 < d and b < y1:
+            return True
+    return False
+
+
+def _flat_fields(pdf_path, widgets, words_by_page):
     det = optional("nff_detect_fields")
     if det is None:
         return []
@@ -260,7 +271,15 @@ def _flat_fields(pdf_path, pages_with_widgets, words_by_page):
     for f in found:
         page = int(f.get("page", 1))
         pos = f.get("position")
-        if page in pages_with_widgets or not pos:
+        if not pos:
+            continue
+        if f.get("detection_method") == "visual_checkbox" and "x2" in pos:
+            box = [round(float(pos["x1"]), 2), round(float(pos["y1"]), 2),
+                   round(float(pos["x2"]), 2), round(float(pos["y2"]), 2)]
+            if not _overlaps_widget(box, widgets, page):
+                out.append({"name": f["field_name"], "label": f.get("field_name_raw") or f["field_name"],
+                            "page": page, "rect": box, "method": "visual_checkbox", "prefix": None,
+                            "acro_kind": "checkbox", "on_states": ["/Yes"]})
             continue
         info = words_by_page.get(page, {"words": [], "w": 612.0, "h": 792.0})
         ph, pw = info["h"], info["w"]
@@ -278,8 +297,11 @@ def _flat_fields(pdf_path, pages_with_widgets, words_by_page):
                    if abs((ph - w["bottom"] + 1) - y) <= 2.5 and w["x0"] > x + 4]
             right = (min(nxt) - 6) if nxt else pw - 36
         right = max(right, x + 40)
+        rect = [round(x, 2), round(y - 2, 2), round(right, 2), round(y + 14, 2)]
+        if _overlaps_widget(rect, widgets, page):
+            continue
         out.append({"name": f["field_name"], "label": f.get("field_name_raw") or f["field_name"],
-                    "page": page, "rect": [round(x, 2), round(y - 2, 2), round(right, 2), round(y + 14, 2)],
+                    "page": page, "rect": rect,
                     "method": f.get("detection_method", "visual"), "prefix": prefix})
     return out
 
@@ -296,9 +318,9 @@ def detect_fields(pdf_path):
         except Exception:
             pass
     fields = []
-    widget_pages = set()
+    widget_list = []
     for w in _widgets(pdf_path):
-        widget_pages.add(w["page"])
+        widget_list.append(w)
         info = words.get(w["page"], {"words": [], "h": 792.0})
         side = "right" if w["kind"] == "checkbox" else "left"
         label, near = _label_near(info["words"], info["h"], w["rect"], side)
@@ -311,7 +333,7 @@ def detect_fields(pdf_path):
                        "acro_kind": w["kind"], "on_states": w["on_states"],
                        "required": w["required"] or bool(meta.get("required")),
                        "initial_value": w["value"]})
-    for f in _flat_fields(pdf_path, widget_pages, words):
+    for f in _flat_fields(pdf_path, widget_list, words):
         info = words.get(f["page"], {"words": [], "h": 792.0})
         _, near = _label_near(info["words"], info["h"], f["rect"], "left")
         f.update(origin="visual", near=near, required=False)
@@ -1041,7 +1063,7 @@ def api_signature_approve(s, body):
             raise ApiError(403, v["message"])
         full = v["signer"]["full_name"]
         for f in signed:
-            if f["type"] == "signature" and not f.get("image_file"):
+            if f["type"] == "signature" and str(f.get("value") or "").strip():
                 typed = re.sub(r"\s+", " ", str(f["value"]).strip().lower())
                 if typed not in (full.lower(), "/s/ " + full.lower()):
                     raise ApiError(400, f"Typed signature '{f['value']}' does not match signer {full}")

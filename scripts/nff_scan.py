@@ -281,9 +281,20 @@ def write_checklist(proposals, out_dir=None):
 
 
 # ------------------------------------------------------------------ apply
+def queue_rows(out):
+    """Durable local queue for approved rows that were not written live (the agent appends them)."""
+    path = db.nff_home() / "sheet_append_queue.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"queued_at": db.now(), "canonical": out["canonical"], "kb": out["kb"],
+                             "applied": out["applied"]}) + "\n")
+    return path
+
+
 def apply_proposals(conn, ids, approve_tier3=False, user="", writer=None):
-    """Build Sheet rows for approved proposals. When `writer` is given (e.g. append_live) it runs
-    before anything is marked approved, so a failed write leaves the proposals pending and retryable."""
+    """Build Sheet rows for approved proposals. `writer` (append_live, or the local queue by default)
+    runs before anything is marked approved, so a failed write leaves the proposals pending and retryable."""
+    writer = writer or queue_rows
     props = {p["proposal_id"]: p for p in db.list_proposals(conn, "all")}
     canon_rows, kb_rows, skipped = [], [], []
     canon_group, kb_group = [], []
@@ -478,6 +489,8 @@ def main(argv=None):
         if a.apply:
             ids = [i for i in re.split(r"[,\s]+", a.apply) if i]
             out = apply_proposals(conn, ids, a.approve_tier3, a.user, writer=append_live if a.live else None)
+            if not a.live and (out["canonical"]["rows"] or out["kb"]["rows"]):
+                print(f"queued Sheet rows: {db.nff_home() / 'sheet_append_queue.jsonl'}", file=sys.stderr)
             if a.live and (out["canonical"]["rows"] or out["kb"]["rows"]):
                 print(json.dumps({"appended_live": True, "applied": out["applied"], "skipped": out["skipped"]}, indent=2))
             else:

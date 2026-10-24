@@ -190,7 +190,8 @@ def _checkbox_fields(page, page_num):
                 "field_type": "checkbox",
                 "current_value": "",
                 "page": page_num,
-                "position": {"x1": round(box["x1"] + 2, 1), "y1": round(page_h - box["bottom"] + 1, 1)},
+                "position": {"x1": round(box["x0"], 2), "y1": round(page_h - box["bottom"], 2),
+                             "x2": round(box["x1"], 2), "y2": round(page_h - box["top"], 2)},
                 "detection_method": "visual_checkbox",
             })
     return found
