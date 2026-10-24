@@ -371,7 +371,33 @@ def resolve_canonical(rows, retired=RETIRED_VALUES):
     return values, held
 
 
-def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=False, held=None):
+def _readable_label(d, kb_field):
+    """Use the mapped KB field name when the PDF gives only an internal widget name or a stray glyph."""
+    label = str(d.get("label") or "")
+    if kb_field and (label == d.get("name") or len(label.strip(" .-–")) < 3):
+        return kb_field.replace("_", " ").strip().capitalize()
+    return label
+
+
+def detect_form_type(pdf_path, name_hint=None):
+    """Match a prewired workflow by the original file name, then by the first page's text
+    (sessions work on a copy named source.pdf, so its own name says nothing)."""
+    import nff_workflow_registry as reg
+    for hint in (name_hint, Path(pdf_path).name):
+        wf = reg.match_workflow(hint) if hint else None
+        if wf:
+            return wf["form_type"]
+    try:
+        from pypdf import PdfReader
+        text = PdfReader(str(pdf_path)).pages[0].extract_text() or ""
+    except Exception:
+        return None
+    wf = reg.match_workflow(text[:1500])
+    return wf["form_type"] if wf else None
+
+
+def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=False, held=None,
+                 name_hint=None):
     """Detect, answer (Tier 1 enforced) and classify. Returns (fields, form_type, manual_notes).
 
     held: {kb_field: decision} canonical answers that need the owner (conflict, missing,
@@ -381,8 +407,7 @@ def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=Fals
     held = held or {}
     detected = detect_fields(pdf_path)
     if not form_type:
-        wf = reg.match_workflow(Path(pdf_path).name)
-        form_type = wf["form_type"] if wf else None
+        form_type = detect_form_type(pdf_path, name_hint)
     labels = [{"field_name": d["name"], "field_name_raw": d["label"], "page": d["page"]}
               for d in detected]
     try:
@@ -444,7 +469,7 @@ def build_fields(pdf_path, form_type=None, kb=None, canonical=None, use_llm=Fals
             if not reason:
                 reason = "no KB match"
         fields.append({
-            "id": f"f{n}", "name": d["name"], "label": d["label"], "page": d["page"],
+            "id": f"f{n}", "name": d["name"], "label": _readable_label(d, kb_field), "page": d["page"],
             "rect": d["rect"], "type": ftype, "type_confidence": round(c["confidence"], 2),
             "type_referee": c.get("referee"), "value": value, "auto_value": value,
             "source": source, "kb_field": kb_field, "confidence": round(conf, 2),
@@ -560,7 +585,7 @@ class Session:
                     conn.close()
         canonical, held = resolve_canonical(canonical or {})
         fields, form_type, notes = build_fields(sdir / "source.pdf", form_type, kb or {}, canonical,
-                                                use_llm, held=held)
+                                                use_llm, held=held, name_hint=Path(pdf).name)
         sizes = render.page_sizes(sdir / "source.pdf")
         render.render_pages(sdir / "source.pdf", sdir / "pages", scale=2.0)
         state = {
