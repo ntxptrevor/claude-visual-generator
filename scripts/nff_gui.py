@@ -1093,8 +1093,9 @@ def api_markups_import(s, body):
 def live_snapshot(s, page_no, scale=1.5):
     """PNG of one page with every overlay applied as it stands now (cached per revision).
 
-    For agents and scripts without the browser. Signatures stay out until the Tier 3 approval,
-    exactly as in a draft export; the browser view shows them as previews.
+    For agents and scripts without the browser. It renders exactly what an export would: before the
+    Tier 3 approval signatures and stamps stay out (the browser shows them as previews); with a valid
+    approval for the current state it renders the approved document plus the attestations.
     """
     import pypdfium2 as pdfium
     if not 1 <= page_no <= len(s.state["pages"]):
@@ -1108,7 +1109,12 @@ def live_snapshot(s, page_no, scale=1.5):
         live.mkdir(mode=0o700, exist_ok=True)
         pdf_path = live / f"rev-{rev}.pdf"
         if not pdf_path.is_file():
-            s.write_pdf(pdf_path, include_signatures=False)
+            ap = s.state.get("signature_approval")
+            approved = bool(ap) and ap.get("state_digest") == s.digest() and Path(ap.get("document_path", "")).is_file()
+            if approved:  # same composition as the final export
+                s.write_pdf(pdf_path, include_signatures=True, src=ap["document_path"], only=SIGNED_TYPES)
+            else:
+                s.write_pdf(pdf_path, include_signatures=False)
         doc = pdfium.PdfDocument(str(pdf_path))
         try:
             p = doc[page_no - 1]

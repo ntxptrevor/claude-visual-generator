@@ -252,8 +252,11 @@ def test_markup_only_set_exports_and_stamp_needs_then_gets_approval(plan_server)
                                               "status": "APPROVED AS NOTED"})
     st, review, _ = call(plan_server, "POST", "/api/review", {})
     assert review["needs_signature_approval"] is True and not review["can_export"]
+    st, before, _ = call(plan_server, "GET", "/api/page/1/live.png")
     st, data, _ = call(plan_server, "POST", "/api/signature/approve", {"signer": "Alison Hopkins", "confirm": True})
     assert st == 200, data
+    st, after, _ = call(plan_server, "GET", "/api/page/1/live.png")
+    assert st == 200 and after != before  # the approved stamp now shows in the snapshot
     assert s.state["markups"][1]["reviewer"] == "Alison Hopkins"
     st, data, _ = call(plan_server, "POST", "/api/export", {"final": True})
     assert st == 200, data
