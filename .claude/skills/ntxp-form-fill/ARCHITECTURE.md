@@ -145,7 +145,29 @@ POST /api/signature/approve {signer, circumstance?} -> hash-bound approval recor
 POST /api/export {final: bool}    -> writes PDF to NFF_HOME/exports; returns path
 POST /api/stop                    -> saves progress PDF + state, returns path
 POST /api/scan  /GET /api/proposals  /POST /api/proposals/apply {ids}
+POST /api/markup {kind, page, rect|start+end|points, text?, color?, origin?}  -> live markup
+POST /api/markup/update {id, ...}  /api/markup/delete {id}
+POST /api/markups/import {manifest, replace?}   -> ntxp-pdf-markups-and-redlines v2/v3 manifest
+GET  /api/events?since=REV        -> text/event-stream; one "change" event per saved revision
+GET  /api/page/<n>/live.png       -> page with every overlay applied (stamps/signatures after Tier 3)
 ```
+
+### Live view design (reverse-engineered from pdf.js with the REA skill)
+
+`rea-open-source-stack` tier 0 (`rea-agents analyze-javascript-application`) mapped pdf.js 4.10
+(Apache-2.0): `display/annotation_storage.js`, `display/draw_layer.js`, `display/editor/*`,
+`web/pdf_page_view.js`. The pieces that make its edits live, and how this GUI uses them:
+
+| pdf.js | NTXP Form Fill |
+|---|---|
+| Page canvas rendered once; annotations in separate layers | Page PNG rendered once; fields (DOM) and markups (SVG) are overlays |
+| `DrawLayer` SVG with page-relative boxes; `updateProperties` patches attributes | Markup SVG uses a PDF user-space `viewBox` with a y-flip, so resizing never redraws |
+| `AnnotationStorage.setValue` diffs and fires `onSetModified` only on a real change | `Session.save()` bumps `rev` and wakes waiting streams; the client diffs by id and re-renders only what changed |
+| `serialize()` + worker writes appearance streams on save | `nff_markup.draw` writes vector marks with reportlab at export; the live view never flattens |
+
+Session state: `markups[]` (bottom-left PDF points, like fields and highlights) and `rev`. A markup's
+geometry and style are part of `digest()`, so any change voids a signature approval. Programmatic
+clients use `scripts/nff_live.py` (reads `<session>/gui.json`, mode 0600, removed on exit).
 Front end: live page view with every field highlighted by state (auto/review/manual/user-added),
 auto-scroll that steps field by field (Space/Enter = accept & next, Esc = stop), **LAST PAGE** bottom
 left and **NEXT PAGE** bottom right (approve or re-open whole pages), toolbar (field types, highlighter,

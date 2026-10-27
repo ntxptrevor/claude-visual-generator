@@ -21,6 +21,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import io
 import importlib
 import json
 import os
@@ -29,6 +30,7 @@ import secrets
 import shutil
 import sys
 import threading
+import time
 import uuid
 import webbrowser
 from datetime import datetime, timezone
@@ -40,6 +42,7 @@ SCRIPTS = Path(__file__).resolve().parent
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import nff_markup as markup  # noqa: E402
 import nff_render as render  # noqa: E402
 from nff_render import format_currency, format_date, format_phone, initials_of  # noqa: E402,F401
 
@@ -58,6 +61,9 @@ NEVER_AUTOFILL_TYPES = {"signature", "initials", "currency"}
 NO_SAVE_TYPES = {"signature", "initials", "currency"}
 SIGNED_TYPES = {"signature", "initials"}
 MAX_BODY = 8 * 1024 * 1024
+MAX_MARKUPS = 5000
+SSE_PING_SECONDS = 15
+SSE_MAX_SECONDS = 600  # the browser's EventSource reconnects with Last-Event-ID
 MAX_IMAGE = 2 * 1024 * 1024
 DEFAULT_STYLE = {"color": "#000000", "size": 11, "font": "Arial", "weight": "regular"}
 HIGHLIGHT_DEFAULT = {"color": "#FFEB3B", "opacity": 0.4, "width": 10}
@@ -588,7 +594,11 @@ class Session:
         self.dir = Path(sdir)
         self.state = state
         self.lock = threading.RLock()
+        self.changed = threading.Condition(threading.Lock())
         self.token = secrets.token_urlsafe(24)
+        self.state.setdefault("markups", [])
+        self.state.setdefault("rev", 0)
+        self._live_cache = {}
 
     # -- paths
     @property
@@ -656,9 +666,21 @@ class Session:
 
     def save(self):
         with self.lock:
+            self.state["rev"] = int(self.state.get("rev", 0)) + 1
             tmp = self.dir / "state.json.tmp"
             tmp.write_text(json.dumps(self.state, indent=2, default=str))
             os.replace(tmp, self.dir / "state.json")
+        with self.changed:  # live view: wake every open event stream
+            self.changed.notify_all()
+
+    @property
+    def rev(self):
+        return int(self.state.get("rev", 0))
+
+    def wait_change(self, since, timeout):
+        with self.changed:
+            self.changed.wait_for(lambda: self.rev > since, timeout=timeout)
+        return self.rev
 
     def audit(self, event, **kw):
         with open(self.dir / "audit.jsonl", "a") as fh:
@@ -687,6 +709,8 @@ class Session:
                 img = hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else ""
             items.append([f["id"], f["type"], f["value"], img, f["rect"], f.get("style")])
         items.append(self.state["highlights"])
+        if self.state.get("markups"):  # absent for sessions without markups: older approvals stay valid
+            items.append([{k: v for k, v in m.items() if k != "updated_at"} for m in self.state["markups"]])
         return hashlib.sha256(json.dumps(items, sort_keys=True, default=str).encode()).hexdigest()
 
     def touch(self):
@@ -713,6 +737,8 @@ class Session:
             "session_id": st["session_id"], "form_name": st["form_name"], "form_type": st["form_type"],
             "pages": [{**p, "img": f"/api/page/{p['n']}.png"} for p in st["pages"]],
             "fields": fields, "highlights": st["highlights"], "notes": st.get("notes", []),
+            "markups": st.get("markups", []), "rev": self.rev,
+            "markup_kinds": list(markup.KINDS), "stamp_statuses": list(markup.STAMP_STATUSES),
             "field_types": list(FIELD_TYPES), "progress": self.progress(),
             "confidence": (st.get("review") or {}).get("confidence"),
             "review": st.get("review"),
@@ -738,13 +764,27 @@ class Session:
         fields = self._drawable()
         if only is not None:
             fields = [f for f in fields if f["type"] in only]
+        stamps = [m for m in self.state.get("markups", []) if markup.is_attestation(m)]
+        others = [m for m in self.state.get("markups", []) if not markup.is_attestation(m)]
+        # Stamps are attestations: like signatures they reach a PDF only with the Tier 3 approval.
+        marks = (stamps if include_signatures else []) if only is not None else \
+            others + (stamps if include_signatures else [])
         return render.export_pdf(src or self.source_pdf, fields,
                                  [] if only is not None else self.state["highlights"],
-                                 out_path, include_signatures=include_signatures, image_dir=self.dir)
+                                 out_path, include_signatures=include_signatures, image_dir=self.dir,
+                                 markups=marks)
 
     def signed_fields(self):
         return [f for f in self.state["fields"]
                 if f["type"] in SIGNED_TYPES and (str(f.get("value") or "").strip() or f.get("image_file"))]
+
+    def stamps(self):
+        """Stamps are attestations: they ride the Tier 3 signature approval like signatures."""
+        return [{"label": f"Stamp: {m.get('stamp_status', '')}", "page": m["page"], "id": m["id"],
+                 "type": "stamp"} for m in self.state.get("markups", []) if markup.is_attestation(m)]
+
+    def attested(self):
+        return self.signed_fields() + self.stamps()
 
 
 def _default_signer():
@@ -956,6 +996,137 @@ def api_highlight_update(s, body, delete=False):
         return {"ok": True, "highlight": None if delete else hl}
 
 
+def _markup_origin(body):
+    origin = str(body.get("origin") or "top-left")
+    unit = str(body.get("coordinate_mode") or "pdf_points")
+    return origin, unit
+
+
+def api_markup_add(s, body):
+    """Add one live markup. Coordinates default to the v3 manifest convention:
+    PDF points from the page's top-left corner (origin "bottom-left" for GUI space)."""
+    origin, unit = _markup_origin(body)
+    with s.lock:
+        try:
+            m = markup.normalize(body, s.state["pages"], origin, unit)
+        except markup.MarkupError as e:
+            raise ApiError(400, str(e))
+        if len(s.state["markups"]) >= MAX_MARKUPS:
+            raise ApiError(413, f"markup limit reached ({MAX_MARKUPS})")
+        if any(x["id"] == m["id"] for x in s.state["markups"]):
+            m["id"] = "m" + uuid.uuid4().hex[:10]
+        m["author"] = m.get("author") or str(body.get("author") or os.environ.get("NFF_USER", ""))[:80]
+        s.state["markups"].append(m)
+        s.audit("markup_added", id=m["id"], kind=m["kind"], page=m["page"])
+        s.touch()
+        return {"ok": True, "markup": m, "rev": s.rev}
+
+
+def api_markup_update(s, body):
+    origin, unit = _markup_origin(body)
+    with s.lock:
+        cur = next((m for m in s.state["markups"] if m["id"] == body.get("id")), None)
+        if cur is None:
+            raise ApiError(404, "unknown markup")
+        merged = dict(cur)
+        geom_keys = ("rect", "start", "end", "points", "geometry")
+        geom_given = any(k in body for k in geom_keys)
+        if geom_given:  # new geometry replaces the stored one whole; stored values are in another frame
+            for k in geom_keys:
+                merged.pop(k, None)
+        merged.update({k: v for k, v in body.items() if k not in ("id", "origin", "coordinate_mode")})
+        if cur["kind"] == "stamp" and body.get("status"):
+            merged["stamp_status"] = body["status"]
+        try:
+            if geom_given:
+                m = markup.normalize(merged, s.state["pages"], origin, unit, existing_id=cur["id"])
+            else:  # stored geometry is already GUI space
+                m = markup.normalize(merged, s.state["pages"], "bottom-left", "pdf_points", existing_id=cur["id"])
+        except markup.MarkupError as e:
+            raise ApiError(400, str(e))
+        m["author"] = cur.get("author", "")
+        s.state["markups"][s.state["markups"].index(cur)] = m
+        s.audit("markup_updated", id=m["id"])
+        s.touch()
+        return {"ok": True, "markup": m, "rev": s.rev}
+
+
+def api_markup_delete(s, body):
+    with s.lock:
+        cur = next((m for m in s.state["markups"] if m["id"] == body.get("id")), None)
+        if cur is None:
+            raise ApiError(404, "unknown markup")
+        s.state["markups"].remove(cur)
+        s.audit("markup_deleted", id=cur["id"])
+        s.touch()
+        return {"ok": True, "rev": s.rev}
+
+
+def api_markups_import(s, body):
+    """Load an ntxp-pdf-markups-and-redlines manifest (v2/v3 envelope or a list) into the live view."""
+    manifest = body.get("manifest", body.get("markups"))
+    if manifest is None:
+        raise ApiError(400, "manifest (object or list) required")
+    with s.lock:
+        try:
+            added, skipped = markup.import_manifest(manifest, s.state["pages"])
+        except markup.MarkupError as e:
+            raise ApiError(400, str(e))
+        kept = len([m for m in s.state["markups"] if markup.is_attestation(m)]) if body.get("replace") else len(s.state["markups"])
+        if kept + len(added) > MAX_MARKUPS:
+            raise ApiError(413, f"markup limit reached ({MAX_MARKUPS})")
+        taken = {m["id"] for m in s.state["markups"]}
+        for m in added:
+            if m["id"] in taken:
+                m["id"] = "m" + uuid.uuid4().hex[:10]
+            taken.add(m["id"])
+        if body.get("replace"):
+            s.state["markups"] = [m for m in s.state["markups"] if markup.is_attestation(m)] + added
+        else:
+            s.state["markups"].extend(added)
+        s.audit("markups_imported", added=len(added), skipped=len(skipped))
+        s.touch()
+        return {"ok": True, "added": [m["id"] for m in added], "skipped": skipped, "rev": s.rev}
+
+
+def live_snapshot(s, page_no, scale=1.5):
+    """PNG of one page with every overlay applied as it stands now (cached per revision).
+
+    For agents and scripts without the browser. Signatures stay out until the Tier 3 approval,
+    exactly as in a draft export; the browser view shows them as previews.
+    """
+    import pypdfium2 as pdfium
+    if not 1 <= page_no <= len(s.state["pages"]):
+        raise ApiError(404, "no such page")
+    with s.lock:  # one revision, written and rendered as a unit (threads share the live/ folder)
+        rev = s.rev
+        key = (rev, page_no)
+        if key in s._live_cache:
+            return s._live_cache[key]
+        live = s.dir / "live"
+        live.mkdir(mode=0o700, exist_ok=True)
+        pdf_path = live / f"rev-{rev}.pdf"
+        if not pdf_path.is_file():
+            s.write_pdf(pdf_path, include_signatures=False)
+        doc = pdfium.PdfDocument(str(pdf_path))
+        try:
+            p = doc[page_no - 1]
+            w, h = p.get_size()
+            scale = min(scale, 4200.0 / max(w, h, 1))  # ARCH E sheets stay under ~4200 px
+            img = p.render(scale=scale).to_pil()
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            png = buf.getvalue()
+        finally:
+            doc.close()
+        for old in live.glob("rev-*.pdf"):
+            if old != pdf_path:
+                old.unlink(missing_ok=True)
+        s._live_cache = {k: v for k, v in s._live_cache.items() if k[0] == rev}
+        s._live_cache[key] = png
+        return png
+
+
 def api_page(s, body, approve=True):
     try:
         page = int(body.get("page"))
@@ -1077,9 +1248,9 @@ def api_signature_approve(s, body):
     if body.get("confirm") is not True:
         raise ApiError(400, "explicit confirmation required (confirm: true)")
     with s.lock:
-        signed = s.signed_fields()
+        signed = s.attested()
         if not signed:
-            raise ApiError(400, "no signature or initials value to approve")
+            raise ApiError(400, "no signature, initials or stamp to approve")
         v = sig.validate_signer(signer)
         if not v["authorized"]:
             s.audit("signature_rejected", signer=signer, reason="not authorized")
@@ -1094,6 +1265,12 @@ def api_signature_approve(s, body):
                 letters = re.sub(r"[^a-z]", "", str(f["value"]).lower())
                 if letters != re.sub(r"[^a-z]", "", initials_of(full).lower()):
                     raise ApiError(400, f"Initials '{f['value']}' do not match signer {full}")
+        for m in s.state.get("markups", []):
+            if markup.is_attestation(m):
+                reviewer = re.sub(r"\s+", " ", str(m.get("reviewer") or "")).strip()
+                if reviewer and reviewer.lower() != full.lower():
+                    raise ApiError(400, f"Stamp reviewer '{reviewer}' does not match signer {full}")
+                m["reviewer"] = full  # the stamp attests for the approved signer
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         unsigned = s.dir / f"unsigned_final_{ts}.pdf"
         s.write_pdf(unsigned, include_signatures=False)
@@ -1152,7 +1329,7 @@ def api_export(s, body):
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         name = f"{_safe_stem(s.state['form_name'])}_completed_{ts}.pdf"
         out = s.exports / name
-        signed = s.signed_fields()
+        signed = s.attested()
         if signed:
             sig = optional("nff_signatures")
             ap = s.state.get("signature_approval")
@@ -1441,7 +1618,7 @@ class Handler(BaseHTTPRequestHandler):
         s = self.session
         try:
             if method == "GET":
-                return self._get(s, path)
+                return self._get(s, path, query)
             body = self._body()
             routes = {
                 "/api/field": lambda: api_field(s, body),
@@ -1451,6 +1628,10 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/highlight": lambda: api_highlight(s, body),
                 "/api/highlight/update": lambda: api_highlight_update(s, body),
                 "/api/highlight/delete": lambda: api_highlight_update(s, body, delete=True),
+                "/api/markup": lambda: api_markup_add(s, body),
+                "/api/markup/update": lambda: api_markup_update(s, body),
+                "/api/markup/delete": lambda: api_markup_delete(s, body),
+                "/api/markups/import": lambda: api_markups_import(s, body),
                 "/api/page/approve": lambda: api_page(s, body, True),
                 "/api/page/reopen": lambda: api_page(s, body, False),
                 "/api/review": lambda: api_review(s, body),
@@ -1469,9 +1650,20 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             return self._error(500, f"{type(e).__name__}: {e}")
 
-    def _get(self, s, path):
+    def _get(self, s, path, query=None):
         if path == "/api/session":
             return self._json(200, s.public_state())
+        if path == "/api/events":
+            return self._events(s, query or {})
+        m = re.fullmatch(r"/api/page/(\d{1,4})/live\.png", path)
+        if m:
+            try:
+                png = live_snapshot(s, int(m.group(1)))
+            except ApiError as e:
+                return self._error(e.status, e.message)
+            self._headers(200, "image/png", len(png))
+            self.wfile.write(png)
+            return None
         if path == "/api/proposals":
             return self._json(200, api_proposals(s))
         m = re.fullmatch(r"/api/page/(\d{1,4})\.png", path)
@@ -1495,6 +1687,39 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "application/pdf" if p.suffix == ".pdf" else "application/json"
             return self._file(p, ctype, download_name=p.name)
         return self._error(404, "unknown endpoint")
+
+    def _events(self, s, query):
+        """Server-sent events: one 'change' event per saved revision (live view)."""
+        try:
+            since = int(self.headers.get("Last-Event-ID") or (query.get("since") or ["-1"])[0])
+        except ValueError:
+            since = -1
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", CSP)
+        self.end_headers()
+        deadline = time.monotonic() + SSE_MAX_SECONDS
+        try:
+            self.wfile.write(b"retry: 1500\n\n")
+            if since < 0:
+                since = s.rev
+                self.wfile.write(f"id: {since}\nevent: hello\ndata: {json.dumps({'rev': since})}\n\n".encode())
+            self.wfile.flush()
+            while time.monotonic() < deadline:
+                rev = s.wait_change(since, SSE_PING_SECONDS)
+                if rev > since:
+                    since = rev
+                    data = json.dumps({"rev": rev})
+                    self.wfile.write(f"id: {rev}\nevent: change\ndata: {data}\n\n".encode())
+                else:
+                    self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            return None
+        return None
 
     def do_GET(self):
         self._route("GET")
@@ -1552,6 +1777,10 @@ def main(argv=None):
         session = Session.create(a.pdf, a.form_type, kb, canonical, use_llm=a.llm_classify)
     httpd = make_server(session, a.port)
     url = session_url(httpd)
+    conn_file = session.dir / "gui.json"  # owner-only: nff_live.py reads it to drive this session
+    conn_file.write_text(json.dumps({"url": url, "port": httpd.server_address[1], "token": session.token,
+                                     "pid": os.getpid(), "session_id": session.state["session_id"]}))
+    os.chmod(conn_file, 0o600)
     emit(f"NFF_SESSION: {session.dir}")
     emit(f"NFF_GUI: {url}")
     if not a.no_browser:
@@ -1562,6 +1791,7 @@ def main(argv=None):
         pass
     finally:
         httpd.server_close()
+        conn_file.unlink(missing_ok=True)
     return 0
 
 

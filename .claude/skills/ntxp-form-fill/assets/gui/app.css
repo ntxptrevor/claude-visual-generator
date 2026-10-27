@@ -207,3 +207,16 @@ body.panel-open .page-nav.right { right: 396px; }
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
   .viewer { scroll-behavior: auto; }
 }
+
+/* live markup layer (PDF user space, like pdf.js DrawLayer) */
+.mk-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.mk-layer .mk { pointer-events: visiblePainted; cursor: pointer; }
+.mk-layer .mk.selected { filter: drop-shadow(0 0 2px #1e3a8a) drop-shadow(0 0 2px #1e3a8a); }
+.mk-layer text { font-family: Arial, Helvetica, sans-serif; font-weight: 700; }
+.live-badge { font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 1px 6px; border-radius: 3px; background: #15803d; color: #fff; }
+.live-badge.off { background: #6b7280; }
+.live-badge.pulse { animation: livepulse .6s ease-out; }
+@keyframes livepulse { from { box-shadow: 0 0 0 0 rgba(21,128,61,.7); } to { box-shadow: 0 0 0 8px rgba(21,128,61,0); } }
+@media (prefers-reduced-motion: reduce) { .live-badge.pulse { animation: none; } }
+.tool-text { width: 11rem; min-height: 32px; padding: 2px 6px; border: 1px solid #9ca3af; border-radius: 4px; font: inherit; }
+body.mode-markup .page { cursor: crosshair; }

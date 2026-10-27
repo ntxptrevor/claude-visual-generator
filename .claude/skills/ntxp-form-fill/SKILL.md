@@ -151,6 +151,35 @@ the final PDF is written with **pypdf** + **reportlab**.
 | Signature | Editable (typed or drawn); stamped only after Tier 3 approval |
 | Highlighter | Straight-line, semi-transparent |
 
+### 5a. Live view and construction markups
+
+Every saved change (from this window, another window, a script or an agent) shows in the open GUI at
+once. The page image stays static and every overlay sits on a vector layer in PDF user space, so a
+change patches only that mark. The **LIVE** badge turns gray (RECONNECTING) if the event stream drops.
+
+- **Markup** tool: cloud, rectangle (bounding box), ellipse, arrow, line, polyline, ink, text callout,
+  area and stamp. Drag on the page, or click a mark and press Delete; the color picker recolors it.
+- Marks follow `ntxp-pdf-markups-and-redlines` (core/invariants.md): redline red `#FF0000`, core
+  opacity at most 0.80, a 0.30 halo at 3x width under line-based marks, areas 0.30 fill, bold opaque
+  bounding boxes, one-sided outward clouds, centered red text, dotted demolition.
+- **Stamps** (APPROVED, APPROVED AS NOTED, REVISE AND RESUBMIT, REJECTED, FOR RECORD ONLY, NOT
+  REVIEWED, VOID) are attestations. Like signatures, they show as a preview but reach a PDF only
+  after the Tier 3 approval, and the stamp reviewer must be the approved signer (Alison Hopkins by
+  default; Trevor Hopkins only with a stated circumstance).
+- **Programmatic control** (`scripts/nff_live.py`, reads the running session's owner-only `gui.json`):
+  ```bash
+  python3 scripts/nff_live.py cloud --page 1 --rect 96 128 268 232 --text "Clarify head height"
+  python3 scripts/nff_live.py import rfi_manifest.v3.json          # ntxp-pdf-markups-and-redlines
+  python3 scripts/nff_live.py stamp --page 1 --rect 400 640 590 740 --status "APPROVED AS NOTED"
+  python3 scripts/nff_live.py field f3 "NTXP LLC"
+  python3 scripts/nff_live.py snapshot --page 1 --out page1.png    # PNG with overlays, no browser
+  python3 scripts/nff_live.py watch                                 # print live change events
+  ```
+  Coordinates are PDF points from the page's top-left corner (the v3 manifest convention).
+- Open a construction set the same way as a form: `python3 scripts/nff_gui.py --pdf A101_set.pdf`.
+  Count tags and dimension proofs still render through `ntxp-pdf-markups-and-redlines`; the live view
+  skips them on import and reports them.
+
 ---
 
 ## 6. Manual Drive scan → proposed database additions
@@ -258,6 +287,7 @@ or a PDF. Confidential forms never go to non-Claude seats. Plans: `scripts/nff_o
   SKILL.md, ARCHITECTURE.md, assets/gui/ (index.html, app.css, app.js), assets/output_template/
 scripts/
   nff_gui.py, nff_render.py          guided GUI server, page render, PDF export
+  nff_markup.py, nff_live.py          live markup layer (NTXP rules, v3 import), live CLI client
   nff_db.py, nff_sync.py, nff_scan.py SQLite DB, Sheet->DB sync, Drive scan + checklist
   nff_jev.py                          JEV-1 layer (choices, probabilities, review, confidence)
   nff_canonical.py, nff_workflow_registry.py, nff_signatures.py

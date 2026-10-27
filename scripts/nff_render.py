@@ -399,10 +399,11 @@ def _flatten_widgets(writer, page, drawn=None):
 
 
 def export_pdf(src_pdf, fields, highlights, out_path, include_signatures=False,
-               image_dir=None):
-    """Draw every field value and highlight onto src_pdf and write out_path.
+               image_dir=None, markups=None):
+    """Draw every field value, highlight and markup onto src_pdf and write out_path.
 
     fields: GUI state fields (rect in PDF points, type, value, style).
+    markups: nff_markup records (clouds, arrows, boxes, text, areas, stamps), drawn last.
     include_signatures: only True after a verified Tier 3 approval.
     Returns {"path", "drawn", "font"}.
     """
@@ -415,11 +416,17 @@ def export_pdf(src_pdf, fields, highlights, out_path, include_signatures=False,
     writer = PdfWriter(clone_from=reader)
 
     by_page = {}
+
+    def slot(n):
+        return by_page.setdefault(int(n or 1), {"f": [], "h": [], "m": []})
+
     for f in fields or []:
         if f.get("rect"):
-            by_page.setdefault(int(f.get("page", 1)), {"f": [], "h": []})["f"].append(f)
+            slot(f.get("page"))["f"].append(f)
     for hl in highlights or []:
-        by_page.setdefault(int(hl.get("page", 1)), {"f": [], "h": []})["h"].append(hl)
+        slot(hl.get("page"))["h"].append(hl)
+    for m in markups or []:
+        slot(m.get("page"))["m"].append(m)
 
     drawn = 0
     ours = {str(f.get("name")) for f in fields or [] if f.get("origin") == "acroform"}
@@ -438,6 +445,15 @@ def export_pdf(src_pdf, fields, highlights, out_path, include_signatures=False,
             _draw_highlight(c, hl)
         for f in items["f"]:
             if _draw_field(c, f, font, image_dir, include_signatures):
+                drawn += 1
+        if items["m"]:
+            import sys
+            here = str(Path(__file__).resolve().parent)
+            if here not in sys.path:
+                sys.path.insert(0, here)
+            import nff_markup
+            for m in items["m"]:
+                nff_markup.draw(c, m)
                 drawn += 1
         c.save()
         buf.seek(0)

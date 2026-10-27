@@ -19,6 +19,8 @@
       <span id="pageIndicator" aria-live="polite">Page – of –</span>
       <span class="dot" aria-hidden="true">·</span>
       <span id="progressText">0 of 0 fields approved</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span id="liveBadge" class="live-badge off" role="status" aria-live="off" title="Live view: changes from this window, other windows, scripts and agents appear here as they are saved">LIVE</span>
     </div>
     <div class="progress" id="progress" role="progressbar" aria-label="Fields approved"
          aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="progressBar"></div></div>
@@ -35,6 +37,10 @@
   </label>
   <button type="button" id="addField" class="btn" aria-pressed="false">Add field</button>
   <button type="button" id="highlighter" class="btn" aria-pressed="false">Highlighter</button>
+  <button type="button" id="markupTool" class="btn" aria-pressed="false">Markup</button>
+  <label class="tool">Mark <select id="markupKind" aria-label="Markup type"></select></label>
+  <label class="tool" id="stampWrap" hidden>Stamp <select id="stampStatus" aria-label="Stamp status"></select></label>
+  <input type="text" id="markupText" class="tool-text" maxlength="200" placeholder="Markup text" aria-label="Text for text and callout markups">
   <label class="tool">Color <input type="color" id="colorPicker" value="#000000" aria-label="Color of selected field or highlight"></label>
   <label class="tool">Size <input type="number" id="fontSize" min="6" max="36" step="1" value="11" aria-label="Font size in points for selected field"></label>
   <span class="tool-sep" aria-hidden="true"></span>

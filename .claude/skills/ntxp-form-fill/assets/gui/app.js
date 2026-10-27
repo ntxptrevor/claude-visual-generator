@@ -18,8 +18,12 @@
   var S = {
     st: null, pages: [], fields: {}, order: [], cur: -1, reviewing: false, mode: null,
     selField: null, selHl: null, editor: null, saveQueue: [], saveShown: null,
-    hlColor: "#FFEB3B", wasCompleted: false, exporting: false, sigCache: {}
+    hlColor: "#FFEB3B", wasCompleted: false, exporting: false, sigCache: {},
+    markups: [], selMk: null, mkColor: "#FF0000", rev: 0, es: null
   };
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var LINE_BASED = { cloud: 1, arrow: 1, line: 1, polyline: 1, ink: 1 };
+  var RECT_KINDS = { cloud: 1, rectangle: 1, ellipse: 1, text: 1, stamp: 1, area: 1 };
 
   // ------------------------------------------------------------------ helpers
   function $(id) { return document.getElementById(id); }
@@ -133,8 +137,14 @@
       st.fields.forEach(function (f) { S.fields[f.id] = f; });
       buildPages(st.pages);
       st.highlights.forEach(drawHighlight);
+      fillSelect($("markupKind"), st.markup_kinds || []);
+      fillSelect($("stampStatus"), st.stamp_statuses || []);
+      S.markups = st.markups || [];
+      S.rev = st.rev || 0;
+      renderMarkups();
       reorder();
       renderAllFields();
+      startLive();
       updateProgress();
       if (st.review) showReview(st.review, true);
       if (st.flags && st.flags.last_export) showExport(st.flags.last_export);
@@ -158,10 +168,20 @@
       svg.setAttribute("class", "hl-layer");
       svg.setAttribute("aria-hidden", "true");
       var layer = el("div", { cls: "layer" });
+      // Markups live in PDF user space (bottom-left origin), so a resize never redraws them.
+      var ox = p.ox || 0, oy = p.oy || 0;
+      var mk = document.createElementNS(SVGNS, "svg");
+      mk.setAttribute("class", "mk-layer");
+      mk.setAttribute("viewBox", ox + " " + oy + " " + p.w + " " + p.h);
+      mk.setAttribute("preserveAspectRatio", "none");
+      mk.setAttribute("aria-hidden", "true");
+      var mkRoot = document.createElementNS(SVGNS, "g");
+      mkRoot.setAttribute("transform", "translate(0 " + (2 * oy + p.h) + ") scale(1 -1)");
+      mk.appendChild(mkRoot);
       wrap.appendChild(el("span", { cls: "page-label", text: "Page " + p.n }));
-      wrap.appendChild(img); wrap.appendChild(svg); wrap.appendChild(layer);
+      wrap.appendChild(img); wrap.appendChild(svg); wrap.appendChild(mk); wrap.appendChild(layer);
       host.appendChild(wrap);
-      var info = { n: p.n, w: p.w, h: p.h, ox: p.ox || 0, oy: p.oy || 0, el: wrap, svg: svg, layer: layer, img: img };
+      var info = { n: p.n, w: p.w, h: p.h, ox: ox, oy: oy, el: wrap, svg: svg, layer: layer, img: img, mk: mkRoot };
       S.pages.push(info);
       sizePage(info);
       wrap.addEventListener("pointerdown", function (ev) { pagePointerDown(ev, info); });
@@ -658,20 +678,24 @@
     S.mode = S.mode === m ? null : m;
     document.body.classList.toggle("mode-add", S.mode === "add");
     document.body.classList.toggle("mode-highlight", S.mode === "highlight");
+    document.body.classList.toggle("mode-markup", S.mode === "markup");
+    $("markupTool").setAttribute("aria-pressed", S.mode === "markup" ? "true" : "false");
     $("addField").setAttribute("aria-pressed", S.mode === "add" ? "true" : "false");
     $("highlighter").setAttribute("aria-pressed", S.mode === "highlight" ? "true" : "false");
     var hint = $("modeHint");
     if (S.mode === "add") { hint.textContent = "Drag a rectangle on the page to add a " + (TYPE_LABELS[$("fieldType").value] || "field") + ". Esc cancels."; hint.hidden = false; }
     else if (S.mode === "highlight") { hint.textContent = "Drag to highlight. Lines snap horizontal, vertical or 45°. Esc cancels."; hint.hidden = false; $("colorPicker").value = S.hlColor; }
+    else if (S.mode === "markup") { hint.textContent = markupHint(); hint.hidden = false; $("colorPicker").value = S.mkColor; }
     else { hint.hidden = true; }
     if (S.mode) { closeEditor(); S.reviewing = false; }
   }
 
   function pagePointerDown(ev, p) {
     if (!S.mode || ev.button > 0) {
-      if (!S.mode && ev.target.tagName !== "line") { S.selHl = null; markSelectedHl(); }
+      if (!S.mode && ev.target.tagName !== "line") { S.selHl = null; markSelectedHl(); selectMarkup(null); }
       return;
     }
+    if (S.mode === "markup") { return markupPointerDown(ev, p); }
     ev.preventDefault();
     var rect = p.el.getBoundingClientRect();
     var x0 = ev.clientX - rect.left, y0 = ev.clientY - rect.top;
@@ -732,7 +756,7 @@
     line.setAttribute("data-id", hl.id); line.setAttribute("class", "hl" + (S.selHl === hl.id ? " selected" : ""));
     line.addEventListener("pointerdown", function (ev) {
       if (S.mode) return;
-      ev.stopPropagation(); S.selHl = hl.id; S.selField = null; $("colorPicker").value = hl.color; markSelectedHl();
+      ev.stopPropagation(); selectMarkup(null); S.selHl = hl.id; S.selField = null; $("colorPicker").value = hl.color; markSelectedHl();
       toast("Highlight selected: change its color, or press Delete to remove it.");
     });
     p.svg.appendChild(line);
@@ -745,6 +769,13 @@
     });
   }
   function onColor() {
+    if (S.mode === "markup" || S.selMk) {
+      S.mkColor = $("colorPicker").value.toUpperCase();
+      if (S.selMk) {
+        api("POST", "/api/markup/update", { id: S.selMk, color: S.mkColor }).catch(function (e) { toast("Error: " + e.message); });
+      }
+      return;
+    }
     var c = $("colorPicker").value.toUpperCase();
     if (S.selHl) {
       api("POST", "/api/highlight/update", { id: S.selHl, color: c }).then(function (r) {
@@ -897,8 +928,241 @@
   }
 
   // ------------------------------------------------------------------ wiring
+  // ------------------------------------------------------------------ live view (server-sent events)
+  // Every saved change bumps the session revision; the server pushes it and this window
+  // re-reads the session and patches only what changed (fields, highlights, markups, flags).
+  function startLive() {
+    if (!window.EventSource || S.es) return;
+    var badge = $("liveBadge");
+    var es = new EventSource(withToken("/api/events?since=" + S.rev));
+    S.es = es;
+    es.addEventListener("open", function () { badge.classList.remove("off"); badge.textContent = "LIVE"; });
+    es.addEventListener("error", function () { badge.classList.add("off"); badge.textContent = "RECONNECTING"; });
+    es.addEventListener("change", function (ev) {
+      var d = {}; try { d = JSON.parse(ev.data); } catch (e) { return; }
+      if (d.rev > S.rev) refresh();
+    });
+  }
+  var refreshing = null, refreshAgain = false;
+  function refresh() {
+    if (refreshing) { refreshAgain = true; return refreshing; }
+    refreshing = api("GET", "/api/session").then(function (st) {
+      if ((st.rev || 0) <= S.rev) return;
+      S.rev = st.rev;
+      var editing = S.editor && S.editor.field ? S.editor.field.id : null, seen = {}, changed = 0;
+      st.fields.forEach(function (f) {
+        seen[f.id] = 1;
+        if (f.id === editing) return;  // never clobber what the user is typing
+        var old = S.fields[f.id];
+        if (!old || JSON.stringify(old) !== JSON.stringify(f)) { S.fields[f.id] = f; changed++; if (old && pageInfo(f.page)) renderField(f); }
+      });
+      Object.keys(S.fields).forEach(function (id) {
+        if (!seen[id] && id !== editing) { var n = document.getElementById("fld-" + id); if (n) n.remove(); delete S.fields[id]; changed++; }
+      });
+      reorder();
+      S.order.forEach(function (f) { if (!document.getElementById("fld-" + f.id)) renderField(f); });
+      if (JSON.stringify(S.st.highlights) !== JSON.stringify(st.highlights)) {
+        S.st.highlights = st.highlights;
+        S.pages.forEach(function (p) { while (p.svg.firstChild) p.svg.removeChild(p.svg.firstChild); });
+        st.highlights.forEach(drawHighlight); changed++;
+      }
+      if (JSON.stringify(S.markups) !== JSON.stringify(st.markups || [])) { S.markups = st.markups || []; renderMarkups(); changed++; }
+      ["review", "flags", "signature_approval", "progress", "confidence"].forEach(function (k) { S.st[k] = st[k]; });
+      updateProgress();
+      var badge = $("liveBadge");
+      badge.classList.remove("pulse"); void badge.offsetWidth; badge.classList.add("pulse");
+      if (changed) announce("Document updated");
+    }).catch(function () { /* the next event retries */ }).then(function () {
+      refreshing = null;
+      if (refreshAgain) { refreshAgain = false; refresh(); }
+    });
+    return refreshing;
+  }
+
+  // ------------------------------------------------------------------ markups
+  function fillSelect(sel, items) {
+    clear(sel);
+    items.forEach(function (t) { sel.appendChild(el("option", { value: t, text: t.replace(/_/g, " ") })); });
+  }
+  function markupHint() {
+    var k = $("markupKind").value;
+    if (k === "arrow" || k === "line") return "Drag from the tail to the point of the " + k + ". Esc cancels.";
+    if (k === "ink" || k === "polyline") return "Draw freehand; release to finish. Esc cancels.";
+    if (k === "text") return "Type the note in the Markup text box, then drag its box. Esc cancels.";
+    if (k === "stamp") return "Pick the stamp status, then drag where the stamp goes. Stamps need Tier 3 approval before final export.";
+    return "Drag to place the " + k + ". Esc cancels.";
+  }
+  function svg(tag, attrs) {
+    var n = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+  function cloudD(r, depth, seg) {
+    var x0 = r[0], y0 = r[1], x1 = r[2], y1 = r[3], cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    var c = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], d = "M " + x0 + " " + y0;
+    for (var i = 0; i < 4; i++) {
+      var a = c[i], b = c[(i + 1) % 4], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      var n = Math.max(1, Math.round(len / seg)), dx = (b[0] - a[0]) / len, dy = (b[1] - a[1]) / len;
+      var nx = dy, ny = -dx, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
+      for (var k = 0; k < n; k++) {
+        var px = a[0] + (b[0] - a[0]) * k / n, py = a[1] + (b[1] - a[1]) * k / n;
+        var qx = a[0] + (b[0] - a[0]) * (k + 1) / n, qy = a[1] + (b[1] - a[1]) * (k + 1) / n;
+        d += " Q " + ((px + qx) / 2 + nx * 2 * depth) + " " + ((py + qy) / 2 + ny * 2 * depth) + " " + qx + " " + qy;
+      }
+    }
+    return d + " Z";
+  }
+  function wrapLines(text, width, size) {
+    var max = Math.max(1, Math.floor(width / (size * 0.56))), out = [];
+    String(text || "").split("\n").forEach(function (para) {
+      var line = "";
+      para.split(/\s+/).forEach(function (w) {
+        if (!w) return;
+        var t = line ? line + " " + w : w;
+        if (t.length > max && line) { out.push(line); line = w; } else line = t;
+      });
+      out.push(line);
+    });
+    return out;
+  }
+  function textBlock(g, text, r, color, size) {
+    // counter-flip so text reads upright inside the y-up markup layer (LOCK-13 centered)
+    var w = r[2] - r[0] - 6, h = r[3] - r[1] - 4, lines;
+    size = size || 11;
+    while (true) { lines = wrapLines(text, w, size); if (lines.length * size * 1.2 <= h || size <= 5) break; size -= 0.5; }
+    var t = svg("g", { transform: "translate(" + ((r[0] + r[2]) / 2) + " " + ((r[1] + r[3]) / 2) + ") scale(1 -1)" });
+    var top = -(lines.length * size * 1.2) / 2 + size * 0.95;
+    lines.forEach(function (ln, i) {
+      var tx = svg("text", { x: 0, y: top + i * size * 1.2, "text-anchor": "middle", "font-size": size, fill: color });
+      tx.textContent = ln; t.appendChild(tx);
+    });
+    g.appendChild(t);
+  }
+  function lineAttrs(m, width, opacity) {
+    var a = { fill: "none", stroke: m.color, "stroke-width": width, "stroke-opacity": opacity, "stroke-linejoin": "round", "stroke-linecap": "round" };
+    if (m.dashed) a["stroke-dasharray"] = "2 3";
+    return a;
+  }
+  function shapeFor(m, attrs) {
+    var k = m.kind, r = m.rect;
+    if (k === "cloud") return svg("path", Object.assign({ d: cloudD(r, m.cloud_depth || 5, m.cloud_segment || 28) }, attrs));
+    if (k === "rectangle" || k === "text" || k === "stamp") return svg("rect", Object.assign({ x: r[0], y: r[1], width: r[2] - r[0], height: r[3] - r[1] }, attrs));
+    if (k === "ellipse") return svg("ellipse", Object.assign({ cx: (r[0] + r[2]) / 2, cy: (r[1] + r[3]) / 2, rx: (r[2] - r[0]) / 2, ry: (r[3] - r[1]) / 2 }, attrs));
+    if (k === "arrow" || k === "line") return svg("line", Object.assign({ x1: m.start[0], y1: m.start[1], x2: m.end[0], y2: m.end[1] }, attrs));
+    var pts = (m.points || []).map(function (p) { return p[0] + "," + p[1]; }).join(" ");
+    return svg(k === "area" ? "polygon" : "polyline", Object.assign({ points: pts }, attrs));
+  }
+  function drawMarkup(m) {
+    var p = pageInfo(m.page); if (!p) return;
+    var g = svg("g", { "class": "mk" + (S.selMk === m.id ? " selected" : ""), "data-id": m.id });
+    var w = m.width || 2, op = m.opacity == null ? 0.8 : m.opacity;
+    if (LINE_BASED[m.kind] && m.halo !== false) g.appendChild(shapeFor(m, lineAttrs(m, w * 3, 0.3)));  // LOCK-08 halo
+    if (m.kind === "area") {
+      g.appendChild(shapeFor(m, { fill: m.color, "fill-opacity": m.fill_opacity || 0.3, stroke: "none" }));
+      g.appendChild(shapeFor(m, lineAttrs(m, w, op)));
+    } else if (m.kind === "text") {
+      g.appendChild(shapeFor(m, { fill: "#FFFFFF", "fill-opacity": 0.5, stroke: m.color, "stroke-width": w, "stroke-opacity": op }));
+      textBlock(g, m.text, m.rect, m.color, 11);
+    } else if (m.kind === "stamp") {
+      var r = m.rect, h = r[3] - r[1];
+      g.appendChild(shapeFor(m, { fill: "none", stroke: m.color, "stroke-width": w, "stroke-opacity": 0.8 }));
+      g.appendChild(svg("rect", { x: r[0] + 3, y: r[1] + 3, width: r[2] - r[0] - 6, height: h - 6, fill: "none", stroke: m.color, "stroke-width": 0.75, "stroke-opacity": 0.8 }));
+      textBlock(g, m.company || "NTXP LLC", [r[0], r[3] - h * 0.30, r[2], r[3] - 3], m.color, 9);
+      textBlock(g, m.stamp_status || m.text, [r[0] + 3, r[1] + h * 0.34, r[2] - 3, r[3] - h * 0.30], m.color, 14);
+      var foot = [m.reviewer, m.stamp_date].filter(Boolean).join(" | ");
+      if (foot) textBlock(g, foot, [r[0] + 3, r[1] + 3, r[2] - 3, r[1] + h * 0.34], m.color, 8);
+    } else {
+      g.appendChild(shapeFor(m, lineAttrs(m, w, m.kind === "rectangle" ? 1 : op)));
+      if (m.kind === "arrow") {
+        var a = Math.atan2(m.end[1] - m.start[1], m.end[0] - m.start[0]), sz = 3 * w + 6, e = m.end;
+        var pts = [e, [e[0] - sz * Math.cos(a - 0.45), e[1] - sz * Math.sin(a - 0.45)], [e[0] - sz * Math.cos(a + 0.45), e[1] - sz * Math.sin(a + 0.45)]];
+        g.appendChild(svg("polygon", { points: pts.map(function (q) { return q[0] + "," + q[1]; }).join(" "), fill: m.color, "fill-opacity": op }));
+      }
+      if (m.text && (m.kind === "arrow" || m.kind === "line")) textBlock(g, m.text, [m.start[0] - 60, m.start[1] + 4, m.start[0] + 60, m.start[1] + 26], m.color, 10);
+      if (m.text && m.rect) {  // label tag centered above clouds, boxes and ellipses (LOCK-05 red text on red marks)
+        var cx = (m.rect[0] + m.rect[2]) / 2, top = m.rect[3] + (m.kind === "cloud" ? 2 * (m.cloud_depth || 5) : 0);
+        textBlock(g, m.text, [cx - 110, top + 3, cx + 110, top + 27], m.color, 11);
+      }
+    }
+    g.addEventListener("pointerdown", function (ev) {
+      if (S.mode) return;
+      ev.stopPropagation(); S.selHl = null; markSelectedHl(); selectMarkup(m.id);
+      $("colorPicker").value = m.color;
+      toast((m.kind === "stamp" ? "Stamp" : "Markup") + " selected: change its color, or press Delete to remove it.");
+    });
+    p.mk.appendChild(g);
+  }
+  function renderMarkups() {
+    S.pages.forEach(function (p) { while (p.mk.firstChild) p.mk.removeChild(p.mk.firstChild); });
+    S.markups.forEach(drawMarkup);
+  }
+  function selectMarkup(id) {
+    S.selMk = id;
+    S.pages.forEach(function (p) {
+      Array.prototype.forEach.call(p.mk.querySelectorAll("g.mk"), function (g) {
+        g.setAttribute("class", "mk" + (g.getAttribute("data-id") === id ? " selected" : ""));
+      });
+    });
+  }
+  function todayUs() { var d = new Date(); return ("0" + (d.getMonth() + 1)).slice(-2) + "/" + ("0" + d.getDate()).slice(-2) + "/" + d.getFullYear(); }
+  function markupPointerDown(ev, p) {
+    ev.preventDefault();
+    var kind = $("markupKind").value, rect = p.el.getBoundingClientRect();
+    if (kind === "text" && !$("markupText").value.trim()) { toast("Type the note in the Markup text box first."); $("markupText").focus(); return; }
+    var x0 = ev.clientX - rect.left, y0 = ev.clientY - rect.top, pts = [[x0, y0]], x1 = x0, y1 = y0, temp;
+    p.el.setPointerCapture(ev.pointerId);
+    if (RECT_KINDS[kind]) { temp = el("div", { cls: "rubber" }); p.layer.appendChild(temp); }
+    else if (kind === "arrow" || kind === "line") { temp = svg("line", { stroke: S.mkColor, "stroke-width": 2 }); p.svg.appendChild(temp); }
+    else { temp = svg("polyline", { stroke: S.mkColor, "stroke-width": 2, fill: "none" }); p.svg.appendChild(temp); }
+    function move(e) {
+      x1 = Math.max(0, Math.min(rect.width, e.clientX - rect.left)); y1 = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+      if (RECT_KINDS[kind]) {
+        temp.style.left = Math.min(x0, x1) + "px"; temp.style.top = Math.min(y0, y1) + "px";
+        temp.style.width = Math.abs(x1 - x0) + "px"; temp.style.height = Math.abs(y1 - y0) + "px";
+      } else if (kind === "arrow" || kind === "line") {
+        temp.setAttribute("x1", x0); temp.setAttribute("y1", y0); temp.setAttribute("x2", x1); temp.setAttribute("y2", y1);
+      } else {
+        pts.push([x1, y1]); temp.setAttribute("points", pts.map(function (q) { return q[0] + "," + q[1]; }).join(" "));
+      }
+    }
+    function up() {
+      p.el.removeEventListener("pointermove", move); p.el.removeEventListener("pointerup", up);
+      temp.remove();
+      var body = { kind: kind, page: p.n, origin: "bottom-left", color: S.mkColor, author: S.st.default_signer || "" };
+      var a = screenToPdf(p.n, x0, y0), b = screenToPdf(p.n, x1, y1);
+      if (RECT_KINDS[kind]) {
+        if (Math.abs(x1 - x0) < 6 || Math.abs(y1 - y0) < 6) { toast("Drag a larger box."); return; }
+        body.rect = [a.x, a.y, b.x, b.y];
+      } else if (kind === "arrow" || kind === "line") {
+        if (Math.hypot(x1 - x0, y1 - y0) < 6) return;
+        body.start = [a.x, a.y]; body.end = [b.x, b.y];
+      } else {
+        if (pts.length < 3) return;
+        body.points = pts.map(function (q) { var r2 = screenToPdf(p.n, q[0], q[1]); return [r2.x, r2.y]; });
+      }
+      var txt = $("markupText").value.trim();
+      if (txt) body.text = txt;
+      if (kind === "stamp") { body.status = $("stampStatus").value; body.reviewer = S.st.default_signer || ""; body.stamp_date = todayUs(); }
+      api("POST", "/api/markup", body).then(function (r) {
+        if (!S.markups.some(function (m) { return m.id === r.markup.id; })) { S.markups.push(r.markup); drawMarkup(r.markup); }
+        announce((kind === "stamp" ? "Stamp " : "Markup ") + "added on page " + p.n);
+      }).catch(function (e) { toast("Error: " + e.message); });
+    }
+    p.el.addEventListener("pointermove", move); p.el.addEventListener("pointerup", up);
+  }
+
   function globalKeys(ev) {
     if (ev.key === "Escape" && S.mode) { setMode(null); return; }
+    if ((ev.key === "Delete" || ev.key === "Backspace") && S.selMk && !S.editor &&
+        ["INPUT", "SELECT", "TEXTAREA"].indexOf(document.activeElement.tagName) < 0) {
+      var mid = S.selMk;
+      api("POST", "/api/markup/delete", { id: mid }).then(function (r) {
+        S.markups = S.markups.filter(function (m) { return m.id !== mid; }); S.selMk = null; renderMarkups();
+        announce("Markup deleted");
+      }).catch(function (e) { toast("Error: " + e.message); });
+      return;
+    }
     if (ev.key === "Escape" && S.reviewing) { stopReview(); return; }
     if ((ev.key === "Delete" || ev.key === "Backspace") && S.selHl && !S.editor && document.activeElement.tagName !== "INPUT") {
       var id = S.selHl;
@@ -913,6 +1177,11 @@
     $("startReview").addEventListener("click", startReview);
     $("addField").addEventListener("click", function () { setMode("add"); });
     $("highlighter").addEventListener("click", function () { setMode("highlight"); });
+    $("markupTool").addEventListener("click", function () { setMode("markup"); });
+    $("markupKind").addEventListener("change", function () {
+      $("stampWrap").hidden = $("markupKind").value !== "stamp";
+      if (S.mode === "markup") $("modeHint").textContent = markupHint();
+    });
     $("fieldType").addEventListener("change", function () { if (S.mode === "add") { S.mode = null; setMode("add"); } });
     $("colorPicker").addEventListener("change", onColor);
     $("fontSize").addEventListener("change", onSize);
