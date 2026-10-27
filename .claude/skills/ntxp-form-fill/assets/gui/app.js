@@ -269,7 +269,8 @@
     $("progress").setAttribute("aria-valuetext", done + " of " + total + " fields approved");
     $("progressText").textContent = done + " of " + total + " fields approved (" + pct + "%)";
     updatePageIndicator();
-    var completed = total > 0 && done === total;
+    // A markup-only construction set has no fields; the server decides it is complete once marked up.
+    var completed = total > 0 ? done === total : !!(S.st && S.st.progress && S.st.progress.completed);
     $("completedFlag").hidden = !completed;
     if (completed && !S.wasCompleted) { S.wasCompleted = true; onCompleted(); }
     if (!completed) S.wasCompleted = false;
@@ -986,7 +987,11 @@
       var badge = $("liveBadge");
       badge.classList.remove("pulse"); void badge.offsetWidth; badge.classList.add("pulse");
       if (changed) announce("Document updated");
-    }).catch(function () { /* the next event retries */ }).then(function () {
+      S.refreshFails = 0;
+    }).catch(function () {
+      S.refreshFails = (S.refreshFails || 0) + 1;  // EventSource will not replay this revision: retry ourselves
+      setTimeout(refresh, Math.min(15000, 1000 * Math.pow(2, S.refreshFails)));
+    }).then(function () {
       refreshing = null;
       if (refreshAgain) { refreshAgain = false; refresh(); }
     });
@@ -1157,7 +1162,7 @@
       }
       var txt = $("markupText").value.trim();
       if (txt) body.text = txt;
-      if (kind === "stamp") { body.status = $("stampStatus").value; body.reviewer = S.st.default_signer || ""; body.stamp_date = todayUs(); }
+      if (kind === "stamp") { body.status = $("stampStatus").value; body.stamp_date = todayUs(); }  // reviewer = approved signer
       api("POST", "/api/markup", body).then(function (r) {
         if (!S.markups.some(function (m) { return m.id === r.markup.id; })) { S.markups.push(r.markup); drawMarkup(r.markup); }
         announce((kind === "stamp" ? "Stamp " : "Markup ") + "added on page " + p.n);
