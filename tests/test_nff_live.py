@@ -220,3 +220,50 @@ def test_digest_unchanged_without_markups(server):  # noqa: F811
     d = s.digest()
     s.state["markups"] = []
     assert s.digest() == d
+
+
+@pytest.fixture()
+def plan_server(tmp_path, monkeypatch):
+    """A markup-only construction sheet (no form fields)."""
+    from reportlab.pdfgen import canvas
+    monkeypatch.setenv("NFF_HOME", str(tmp_path / "home"))
+    pdf = tmp_path / "A101.pdf"
+    c = canvas.Canvas(str(pdf), pagesize=(2592, 1728))
+    c.setLineWidth(3)
+    c.rect(360, 420, 520, 360)
+    c.save()
+    session = gui.Session.create(str(pdf), home=tmp_path / "home")
+    httpd = gui.make_server(session, 0)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    yield httpd
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def test_markup_only_set_exports_and_stamp_needs_then_gets_approval(plan_server):
+    from pypdf import PdfReader
+    s = plan_server.session
+    assert not s.state["fields"] and not s.progress()["completed"]
+    call(plan_server, "POST", "/api/markup", {"kind": "cloud", "page": 1, "rect": [860, 380, 1320, 780],
+                                              "text": "RFI 043"})
+    assert s.progress()["completed"]
+    call(plan_server, "POST", "/api/markup", {"kind": "stamp", "page": 1, "rect": [2150, 1250, 2450, 1450],
+                                              "status": "APPROVED AS NOTED"})
+    st, review, _ = call(plan_server, "POST", "/api/review", {})
+    assert review["needs_signature_approval"] is True and not review["can_export"]
+    st, data, _ = call(plan_server, "POST", "/api/signature/approve", {"signer": "Alison Hopkins", "confirm": True})
+    assert st == 200, data
+    assert s.state["markups"][1]["reviewer"] == "Alison Hopkins"
+    st, data, _ = call(plan_server, "POST", "/api/export", {"final": True})
+    assert st == 200, data
+    text = PdfReader(data["path"]).pages[0].extract_text()
+    assert "APPROVED AS NOTED" in text and "RFI 043" in text and "Alison Hopkins" in text
+
+
+def test_cloud_segment_survives_update(server):  # noqa: F811
+    st, data, _ = call(server, "POST", "/api/markup", {"kind": "cloud", "page": 1, "rect": [96, 128, 268, 232],
+                                                        "cloud_segment_length": 14})
+    mid = data["markup"]["id"]
+    st, data, _ = call(server, "POST", "/api/markup/update", {"id": mid, "color": "#0000FF"})
+    assert data["markup"]["cloud_segment"] == 14.0

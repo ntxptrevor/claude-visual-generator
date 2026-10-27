@@ -19,7 +19,7 @@
     st: null, pages: [], fields: {}, order: [], cur: -1, reviewing: false, mode: null,
     selField: null, selHl: null, editor: null, saveQueue: [], saveShown: null,
     hlColor: "#FFEB3B", wasCompleted: false, exporting: false, sigCache: {},
-    markups: [], selMk: null, mkColor: "#FF0000", rev: 0, es: null
+    markups: [], selMk: null, mkColor: "#FF0000", rev: 0, es: null, pendingRemote: {}
   };
   var SVGNS = "http://www.w3.org/2000/svg";
   var LINE_BASED = { cloud: 1, arrow: 1, line: 1, polyline: 1, ink: 1 };
@@ -414,7 +414,16 @@
 
   // ------------------------------------------------------------------ editors
   function closeEditor() {
-    if (S.editor) { S.editor.node.remove(); S.editor = null; }
+    if (!S.editor) return;
+    var id = S.editor.field && S.editor.field.id;
+    S.editor.node.remove(); S.editor = null;
+    if (id && S.pendingRemote[id]) {  // a remote change arrived while editing: show the server's value now
+      delete S.pendingRemote[id];
+      api("GET", "/api/session").then(function (st) {
+        var f = st.fields.filter(function (x) { return x.id === id; })[0];
+        if (f && !(S.editor && S.editor.field && S.editor.field.id === id)) { S.fields[id] = f; renderField(f); updateProgress(); }
+      }).catch(function () { /* next live event retries */ });
+    }
   }
   function positionEditor() {
     var ed = S.editor; if (!ed) return;
@@ -952,7 +961,12 @@
       var editing = S.editor && S.editor.field ? S.editor.field.id : null, seen = {}, changed = 0;
       st.fields.forEach(function (f) {
         seen[f.id] = 1;
-        if (f.id === editing) return;  // never clobber what the user is typing
+        if (f.id === editing) {  // never clobber what the user is typing; reconcile when the editor closes
+          var cur = S.fields[f.id];
+          if (cur && cur.value !== f.value && !S.pendingRemote[f.id]) toast("This field was just changed elsewhere. Saving your edit will replace that change.", 6000);
+          if (cur && JSON.stringify(cur) !== JSON.stringify(f)) S.pendingRemote[f.id] = true;
+          return;
+        }
         var old = S.fields[f.id];
         if (!old || JSON.stringify(old) !== JSON.stringify(f)) { S.fields[f.id] = f; changed++; if (old && pageInfo(f.page)) renderField(f); }
       });

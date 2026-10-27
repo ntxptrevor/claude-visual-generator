@@ -183,7 +183,8 @@ def normalize(raw, pages, origin="top-left", unit="pdf_points", existing_id=None
         m["fill_opacity"] = round(min(max(_num(fo, "fill_opacity"), 0.05), HALO_OPACITY), 2)  # LOCK-09
     if kind == "cloud":
         m["cloud_depth"] = round(min(max(_num(raw.get("cloud_depth", CLOUD_DEPTH), "cloud_depth"), 1.0), 20.0), 2)
-        m["cloud_segment"] = round(min(max(_num(raw.get("cloud_segment_length", CLOUD_SEGMENT), "cloud_segment_length"), 6.0), 120.0), 2)
+        seg = raw.get("cloud_segment_length", raw.get("cloud_segment", CLOUD_SEGMENT))  # stored key on updates
+        m["cloud_segment"] = round(min(max(_num(seg, "cloud_segment_length"), 6.0), 120.0), 2)
     if raw.get("dashed") or str(raw.get("work_status", "")).lower() in ("demo", "demolition"):
         m["dashed"] = True  # LOCK-11 demolition linework is dotted
 

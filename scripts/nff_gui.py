@@ -696,8 +696,9 @@ class Session:
     def progress(self):
         fields = self.state["fields"]
         done = sum(1 for f in fields if f["approved"])
-        return {"approved": done, "total": len(fields),
-                "completed": bool(fields) and done == len(fields)}
+        # A markup-only construction set has no fields to approve: it is complete once marked up.
+        completed = done == len(fields) if fields else bool(self.state.get("markups"))
+        return {"approved": done, "total": len(fields), "completed": completed}
 
     def digest(self):
         """Hash of everything that is drawn on the document."""
@@ -1208,10 +1209,10 @@ def api_review(s, body=None):
             result = _local_review(s)
         checks = result.get("checks") or []
         # Signature gate is ours too: never trust a missing approval.
-        if s.signed_fields() and not ap:
+        if s.attested() and not ap:
             checks.append({"id": "signature.gate", "passed": False, "blocking": True,
-                           "message": "Signature/initials need Tier 3 approval (Approve signature) "
-                                      "before export"})
+                           "message": "Signatures, initials and stamps need Tier 3 approval "
+                                      "(Approve signature) before export"})
         issues = [{"message": c.get("message", c.get("id", "")), "blocking": bool(c.get("blocking")),
                    "advisory": bool(c.get("advisory"))}
                   for c in checks if not c.get("passed")]
@@ -1229,7 +1230,7 @@ def api_review(s, body=None):
                   "blocking": len(blocking), "confidence": confidence,
                   "completed": prog["completed"],
                   "can_export": prog["completed"] and not blocking,
-                  "needs_signature_approval": bool(s.signed_fields()) and not ap,
+                  "needs_signature_approval": bool(s.attested()) and not ap,
                   "engine_error": result.get("engine_error"),
                   "advisories": result.get("advisories", [])}
         s.state["review"] = review
