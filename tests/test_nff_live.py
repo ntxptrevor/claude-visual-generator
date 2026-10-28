@@ -270,3 +270,27 @@ def test_cloud_segment_survives_update(server):  # noqa: F811
     mid = data["markup"]["id"]
     st, data, _ = call(server, "POST", "/api/markup/update", {"id": mid, "color": "#0000FF"})
     assert data["markup"]["cloud_segment"] == 14.0
+
+
+def test_page_sizes_report_crop_box_and_rotation(tmp_path):
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import RectangleObject
+    from reportlab.pdfgen import canvas
+    import nff_render as render
+    src = tmp_path / "src.pdf"
+    c = canvas.Canvas(str(src), pagesize=(612, 792))
+    c.showPage(); c.showPage(); c.save()
+    w = PdfWriter()
+    for i, p in enumerate(PdfReader(str(src)).pages):
+        w.add_page(p)
+        if i == 1:
+            w.pages[-1].rotate(90)
+            w.pages[-1].cropbox = RectangleObject([50, 40, 600, 780])
+    out = tmp_path / "rot.pdf"
+    w.write(str(out))
+    a, b = render.page_sizes(out)
+    assert a == {"w": 612.0, "h": 792.0, "ox": 0.0, "oy": 0.0, "rot": 0}
+    assert b == {"w": 550.0, "h": 740.0, "ox": 50.0, "oy": 40.0, "rot": 90}
+    # the markup frame uses the crop box: top-left (0, 0) is the crop box's top-left corner
+    m = markup.normalize({"kind": "rectangle", "page": 2, "rect": [0, 0, 10, 10]}, [a, b])
+    assert m["rect"] == [50.0, 770.0, 60.0, 780.0]

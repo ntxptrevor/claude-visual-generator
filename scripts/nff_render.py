@@ -157,9 +157,11 @@ def page_sizes(pdf_path):
     reader = PdfReader(str(pdf_path))
     out = []
     for p in reader.pages:
-        box = p.mediabox
+        box = p.cropbox  # what viewers (and pypdfium2) display; defaults to the media box
+        rot = int(p.get("/Rotate", 0) or 0) % 360
         out.append({"w": float(box.width), "h": float(box.height),
-                    "ox": float(box.left), "oy": float(box.bottom)})
+                    "ox": float(box.left), "oy": float(box.bottom),
+                    "rot": rot if rot in (0, 90, 180, 270) else 0})
     return out
 
 

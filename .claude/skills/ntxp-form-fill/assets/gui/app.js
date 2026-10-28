@@ -107,14 +107,38 @@
 
   // ------------------------------------------------------------------ geometry
   function pageInfo(n) { return S.pages[n - 1]; }
-  function scaleOf(n) { var p = pageInfo(n); return p.el.clientWidth / p.w; }
+  // Display frame = the crop box as the page image shows it (top-left origin, /Rotate applied, clockwise).
+  function dispDims(p) { return (p.rot === 90 || p.rot === 270) ? [p.h, p.w] : [p.w, p.h]; }
+  function toDisp(p, x, y) {
+    var u = x - p.ox, v = y - p.oy;
+    if (p.rot === 90) return [v, u];
+    if (p.rot === 180) return [p.w - u, v];
+    if (p.rot === 270) return [p.h - v, p.w - u];
+    return [u, p.h - v];
+  }
+  function fromDisp(p, X, Y) {
+    if (p.rot === 90) return [p.ox + Y, p.oy + X];
+    if (p.rot === 180) return [p.ox + p.w - X, p.oy + Y];
+    if (p.rot === 270) return [p.ox + p.w - Y, p.oy + p.h - X];
+    return [p.ox + X, p.oy + p.h - Y];
+  }
+  function scaleOf(n) { var p = pageInfo(n); return p.el.clientWidth / dispDims(p)[0]; }
   function pdfToBox(f) {
     var p = pageInfo(f.page), s = scaleOf(f.page), r = f.rect;
-    return { left: (r[0] - p.ox) * s, top: (p.oy + p.h - r[3]) * s, width: (r[2] - r[0]) * s, height: (r[3] - r[1]) * s };
+    var a = toDisp(p, r[0], r[1]), b = toDisp(p, r[2], r[3]);
+    return { left: Math.min(a[0], b[0]) * s, top: Math.min(a[1], b[1]) * s,
+             width: Math.abs(b[0] - a[0]) * s, height: Math.abs(b[1] - a[1]) * s };
   }
   function screenToPdf(n, px, py) {
-    var p = pageInfo(n), s = scaleOf(n);
-    return { x: p.ox + px / s, y: p.oy + p.h - py / s };
+    var p = pageInfo(n), s = scaleOf(n), q = fromDisp(p, px / s, py / s);
+    return { x: q[0], y: q[1] };
+  }
+  function pdfToSvgMatrix(p) {  // SVG matrix(a b c d e f) from PDF user space to the display frame
+    var ox = p.ox, oy = p.oy, w = p.w, h = p.h;
+    if (p.rot === 90) return [0, 1, 1, 0, -oy, -ox];
+    if (p.rot === 180) return [-1, 0, 0, 1, ox + w, -oy];
+    if (p.rot === 270) return [0, -1, -1, 0, oy + h, ox + w];
+    return [1, 0, 0, -1, -ox, oy + h];
   }
   function snap(x1, y1, x2, y2) {
     var dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
@@ -169,19 +193,20 @@
       svg.setAttribute("aria-hidden", "true");
       var layer = el("div", { cls: "layer" });
       // Markups live in PDF user space (bottom-left origin), so a resize never redraws them.
-      var ox = p.ox || 0, oy = p.oy || 0;
+      var ox = p.ox || 0, oy = p.oy || 0, rot = p.rot || 0;
+      var frame = { ox: ox, oy: oy, w: p.w, h: p.h, rot: rot }, dd = dispDims(frame);
       var mk = document.createElementNS(SVGNS, "svg");
       mk.setAttribute("class", "mk-layer");
-      mk.setAttribute("viewBox", ox + " " + oy + " " + p.w + " " + p.h);
+      mk.setAttribute("viewBox", "0 0 " + dd[0] + " " + dd[1]);
       mk.setAttribute("preserveAspectRatio", "none");
       mk.setAttribute("aria-hidden", "true");
       var mkRoot = document.createElementNS(SVGNS, "g");
-      mkRoot.setAttribute("transform", "translate(0 " + (2 * oy + p.h) + ") scale(1 -1)");
+      mkRoot.setAttribute("transform", "matrix(" + pdfToSvgMatrix(frame).join(" ") + ")");
       mk.appendChild(mkRoot);
       wrap.appendChild(el("span", { cls: "page-label", text: "Page " + p.n }));
       wrap.appendChild(img); wrap.appendChild(svg); wrap.appendChild(mk); wrap.appendChild(layer);
       host.appendChild(wrap);
-      var info = { n: p.n, w: p.w, h: p.h, ox: ox, oy: oy, el: wrap, svg: svg, layer: layer, img: img, mk: mkRoot };
+      var info = { n: p.n, w: p.w, h: p.h, ox: ox, oy: oy, rot: rot, el: wrap, svg: svg, layer: layer, img: img, mk: mkRoot };
       S.pages.push(info);
       sizePage(info);
       wrap.addEventListener("pointerdown", function (ev) { pagePointerDown(ev, info); });
@@ -192,9 +217,10 @@
   function sizePage(p) {
     var avail = $("viewer").clientWidth - 40;
     var w = Math.max(320, Math.min(avail, 1100));
+    var dd = dispDims(p);
     p.el.style.width = w + "px";
-    p.el.style.height = (w * p.h / p.w) + "px";
-    p.svg.setAttribute("viewBox", "0 0 " + w + " " + (w * p.h / p.w));
+    p.el.style.height = (w * dd[1] / dd[0]) + "px";
+    p.svg.setAttribute("viewBox", "0 0 " + w + " " + (w * dd[1] / dd[0]));
   }
 
   function reorder() {
@@ -422,7 +448,10 @@
       delete S.pendingRemote[id];
       api("GET", "/api/session").then(function (st) {
         var f = st.fields.filter(function (x) { return x.id === id; })[0];
-        if (f && !(S.editor && S.editor.field && S.editor.field.id === id)) { S.fields[id] = f; renderField(f); updateProgress(); }
+        if (S.editor && S.editor.field && S.editor.field.id === id) return;
+        if (f) { S.fields[id] = f; renderField(f); }
+        else { var n = document.getElementById("fld-" + id); if (n) n.remove(); delete S.fields[id]; reorder(); }
+        updateProgress();
       }).catch(function () { /* next live event retries */ });
     }
   }
@@ -759,8 +788,9 @@
     var p = pageInfo(hl.page); if (!p) return;
     var s = scaleOf(hl.page);
     var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", (hl.x1 - p.ox) * s); line.setAttribute("y1", (p.oy + p.h - hl.y1) * s);
-    line.setAttribute("x2", (hl.x2 - p.ox) * s); line.setAttribute("y2", (p.oy + p.h - hl.y2) * s);
+    var a = toDisp(p, hl.x1, hl.y1), b = toDisp(p, hl.x2, hl.y2);
+    line.setAttribute("x1", a[0] * s); line.setAttribute("y1", a[1] * s);
+    line.setAttribute("x2", b[0] * s); line.setAttribute("y2", b[1] * s);
     line.setAttribute("stroke", hl.color); line.setAttribute("stroke-opacity", String(hl.opacity || 0.4));
     line.setAttribute("stroke-width", String((hl.width || 10) * s)); line.setAttribute("stroke-linecap", "butt");
     line.setAttribute("data-id", hl.id); line.setAttribute("class", "hl" + (S.selHl === hl.id ? " selected" : ""));
@@ -972,7 +1002,10 @@
         if (!old || JSON.stringify(old) !== JSON.stringify(f)) { S.fields[f.id] = f; changed++; if (old && pageInfo(f.page)) renderField(f); }
       });
       Object.keys(S.fields).forEach(function (id) {
-        if (!seen[id] && id !== editing) { var n = document.getElementById("fld-" + id); if (n) n.remove(); delete S.fields[id]; changed++; }
+        if (!seen[id]) {
+          if (id === editing) { S.pendingRemote[id] = true; toast("This field was deleted elsewhere. It will be removed when you close the editor.", 6000); return; }
+          var n = document.getElementById("fld-" + id); if (n) n.remove(); delete S.fields[id]; changed++;
+        }
       });
       reorder();
       S.order.forEach(function (f) { if (!document.getElementById("fld-" + f.id)) renderField(f); });
