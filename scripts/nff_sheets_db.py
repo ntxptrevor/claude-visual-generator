@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-FormFlow Google Sheets KB Database Operations
+NTXP Form Fill Google Sheets KB Database Operations
 
 Replaces Supabase with a URL-accessible Google Sheet as the knowledge base.
 All CRUD operations go through Google Sheets MCP tools.
 
 Usage (as library, called by the skill):
-    from formflow_sheets_db import SheetsKB
+    from nff_sheets_db import SheetsKB
     kb = SheetsKB(sheet_id)
     kb.get_field("full_name")
     kb.set_field("full_name", "Trevor", category="personal", confidence=100)
@@ -15,9 +15,9 @@ Usage (as library, called by the skill):
     kb.log_learning({...})
 
 Usage (CLI for setup/debug):
-    python formflow_sheets_db.py --action setup
-    python formflow_sheets_db.py --action export --output kb_export.json
-    python formflow_sheets_db.py --action stats
+    python nff_sheets_db.py --action setup
+    python nff_sheets_db.py --action export --output kb_export.json
+    python nff_sheets_db.py --action stats
 """
 
 import argparse
@@ -445,7 +445,7 @@ def compute_session_stats(session_rows):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Google Sheets KB Operations")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Google Sheets KB Operations")
     parser.add_argument("--action", choices=["setup", "export", "stats", "seed-workflows"],
                         required=True)
     parser.add_argument("--output", default=None, help="Output file for export")

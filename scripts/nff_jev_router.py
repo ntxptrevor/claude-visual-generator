@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-FormFlow JEV Decision Tree Router
+NTXP Form Fill JEV Decision Tree Router
 
-Implements JEV's routing logic for FormFlow tasks. Routes every subtask
+Implements JEV's routing logic for NTXP Form Fill tasks. Routes every subtask
 to the cheapest executor that produces a correct result.
 
 JEV Tiers:
@@ -11,7 +11,7 @@ JEV Tiers:
   - Tier 2: Full model (Sonnet/Opus) or Council vote — ~$0.01
 
 Usage (as library):
-    from formflow_jev_router import JevRouter
+    from nff_jev_router import JevRouter
     router = JevRouter()
     decision = router.route_classification("W-9 Tax Form.pdf")
     decision = router.route_extraction(has_acroform=True)
@@ -19,11 +19,11 @@ Usage (as library):
     decision = router.route_save_location(form_type="insurance_cert")
 
 Usage (CLI):
-    python formflow_jev_router.py --task classify --input "W-9 Form.pdf"
-    python formflow_jev_router.py --task extract --acroform true
-    python formflow_jev_router.py --task match --confidence 85
-    python formflow_jev_router.py --task save --form-type lien_waiver
-    python formflow_jev_router.py --cost-summary
+    python nff_jev_router.py --task classify --input "W-9 Form.pdf"
+    python nff_jev_router.py --task extract --acroform true
+    python nff_jev_router.py --task match --confidence 85
+    python nff_jev_router.py --task save --form-type lien_waiver
+    python nff_jev_router.py --cost-summary
 """
 
 import argparse
@@ -308,7 +308,7 @@ def route_sanity_check():
         "tier": 0,
         "executor": "python_script",
         "cost": COST_TABLE["tier_0_regex"],
-        "method": "formflow_sanity_check.py"
+        "method": "nff_sanity_check.py"
     }
 
 
@@ -319,7 +319,7 @@ def route_report_generation():
         "tier": 0,
         "executor": "reportlab",
         "cost": COST_TABLE["tier_0_reportlab"],
-        "method": "formflow_generate_report.py"
+        "method": "nff_generate_report.py"
     }
 
 
@@ -329,7 +329,7 @@ def route_signature(signer_name=None, circumstance=None):
     Defaults to the designated signatory (Alison Hopkins). Trevor Hopkins is
     routed only with a stated circumstance. Anyone else is denied.
     """
-    from formflow_signatures import default_signer, validate_signer
+    from nff_signatures import default_signer, validate_signer
 
     signer_name = signer_name or default_signer()
     validation = validate_signer(signer_name)
@@ -366,7 +366,7 @@ def route_signature(signer_name=None, circumstance=None):
         "tier": 3,
         "executor": "change_gate",
         "cost": COST_TABLE["tier_0_regex"],
-        "method": "formflow_signatures.py",
+        "method": "nff_signatures.py",
         "gate_tier": 3,
         "gate_action": "explain_and_wait",
         "authorized": True,
@@ -494,7 +494,7 @@ def get_cost_summary():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow JEV Decision Tree Router")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill JEV Decision Tree Router")
     parser.add_argument("--task", choices=["classify", "extract", "match", "save", "signature"],
                         help="Task to route")
     parser.add_argument("--input", type=str, help="Input (filename for classify)")

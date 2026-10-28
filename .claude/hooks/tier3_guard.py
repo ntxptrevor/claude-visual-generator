@@ -43,7 +43,8 @@ TIER3_BASH = [
     (r"\bgcloud\b[^\n]*\b(delete|remove-iam-policy-binding|disable)\b", "deletes or disables a Google Cloud resource"),
     (r"\bgcloud\b[^\n]*\bkeys\s+create\b", "creates a service-account key"),
     (r"\bcurl\b[^\n]*api\.openphone\.com[^\n]*messages", "sends a text message"),
-    (r"\bformflow_signatures\.py\b[^\n]*--apply\b", "stamps a signature"),
+    (r"\b(nff|formflow)_signatures\.py\b[^\n]*--apply\b", "stamps a signature"),
+    (r"\bnff_gui\.py\b[^\n]*--export-signed\b", "stamps a signature"),
 ]
 
 

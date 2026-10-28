@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-FormFlow Document Parser — Extracts key-value pairs from PDF, Excel, and
+NTXP Form Fill Document Parser — Extracts key-value pairs from PDF, Excel, and
 Word documents to populate the Knowledge Base.
 
 Usage:
-    python scripts/formflow_parse_document.py \
+    python scripts/nff_parse_document.py \
         --file document.pdf \
         --output-json extracted.json
 
@@ -277,7 +277,7 @@ PARSERS = {
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FormFlow Document Parser")
+    parser = argparse.ArgumentParser(description="NTXP Form Fill Document Parser")
     parser.add_argument("--file", required=True, help="Path to document file")
     parser.add_argument("--output-json", required=True, help="Output JSON file path")
     args = parser.parse_args()

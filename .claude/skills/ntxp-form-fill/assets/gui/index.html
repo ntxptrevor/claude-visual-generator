@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>NTXP Form Fill Review</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#viewer">Skip to form pages</a>
+
+<header class="topbar">
+  <div class="title-block">
+    <h1 class="title">NTXP Form Fill <span class="sep" aria-hidden="true">|</span> <span id="formName">Loading…</span></h1>
+    <div class="status-line">
+      <span id="pageIndicator" aria-live="polite">Page – of –</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span id="progressText">0 of 0 fields approved</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span id="liveBadge" class="live-badge off" role="status" aria-live="off" title="Live view: changes from this window, other windows, scripts and agents appear here as they are saved">LIVE</span>
+    </div>
+    <div class="progress" id="progress" role="progressbar" aria-label="Fields approved"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-bar" id="progressBar"></div></div>
+  </div>
+</header>
+
+<button type="button" id="stopDownload" class="stop-btn" title="Save progress and download a draft PDF">Stop and download</button>
+
+<div class="toolbar" role="toolbar" aria-label="Review tools">
+  <button type="button" id="startReview" class="btn primary">Start review</button>
+  <span class="tool-sep" aria-hidden="true"></span>
+  <label class="tool">Field type
+    <select id="fieldType" aria-label="Type for new field"></select>
+  </label>
+  <button type="button" id="addField" class="btn" aria-pressed="false">Add field</button>
+  <button type="button" id="highlighter" class="btn" aria-pressed="false">Highlighter</button>
+  <button type="button" id="markupTool" class="btn" aria-pressed="false">Markup</button>
+  <label class="tool">Mark <select id="markupKind" aria-label="Markup type"></select></label>
+  <label class="tool" id="stampWrap" hidden>Stamp <select id="stampStatus" aria-label="Stamp status"></select></label>
+  <input type="text" id="markupText" class="tool-text" maxlength="200" placeholder="Markup text" aria-label="Text for text and callout markups">
+  <label class="tool">Color <input type="color" id="colorPicker" value="#000000" aria-label="Color of selected field or highlight"></label>
+  <label class="tool">Size <input type="number" id="fontSize" min="6" max="36" step="1" value="11" aria-label="Font size in points for selected field"></label>
+  <span class="tool-sep" aria-hidden="true"></span>
+  <button type="button" id="scanDrive" class="btn">Scan Drive</button>
+  <ul class="legend" aria-label="Field colors">
+    <li><span class="chip st-auto" aria-hidden="true"></span>Auto-filled</li>
+    <li><span class="chip st-review" aria-hidden="true"></span>Needs review</li>
+    <li><span class="chip st-manual" aria-hidden="true"></span>Manual / empty</li>
+    <li><span class="chip st-user" aria-hidden="true"></span>User-added</li>
+    <li><span class="chip approved" aria-hidden="true">✓</span>Approved</li>
+  </ul>
+</div>
+
+<div id="modeHint" class="mode-hint" role="status" aria-live="polite" hidden></div>
+
+<div id="completedFlag" class="completed-flag" role="status" hidden>
+  <span aria-hidden="true">✓</span> COMPLETED
+</div>
+
+<main id="viewer" class="viewer" tabindex="-1" aria-label="Form pages">
+  <div id="pages" class="pages"></div>
+</main>
+
+<aside id="reviewPanel" class="review-panel" aria-labelledby="reviewTitle" hidden>
+  <div class="panel-head">
+    <h2 id="reviewTitle">AI review</h2>
+    <button type="button" id="closePanel" class="btn small" aria-label="Close review panel">Close</button>
+  </div>
+  <p class="panel-note">Shown here only. Confidence and issues are never printed on the PDF.</p>
+  <p id="confidence" class="confidence"></p>
+  <ul id="confidenceDrivers" class="drivers"></ul>
+  <h3 class="issues-title">Issues</h3>
+  <ul id="issues" class="issues"></ul>
+  <div id="sigGate" class="sig-gate" hidden>
+    <p><strong>Tier 3:</strong> signatures and initials are applied only after explicit approval bound to this exact document.</p>
+    <button type="button" id="openSigDialog" class="btn primary">Approve signature…</button>
+  </div>
+  <div class="panel-actions">
+    <button type="button" id="rerunReview" class="btn">Run review again</button>
+    <button type="button" id="exportFinal" class="btn primary" disabled>Export final PDF</button>
+  </div>
+  <div id="exportResult" class="export-result" hidden>
+    <p class="export-label">Final PDF saved:</p>
+    <p><code id="exportPath"></code></p>
+    <a id="exportLink" class="btn primary" href="#" download>Download final PDF</a>
+  </div>
+</aside>
+
+<button type="button" id="lastPage" class="page-nav left">LAST PAGE</button>
+<button type="button" id="nextPage" class="page-nav right">NEXT PAGE</button>
+
+<section id="saveCard" class="save-card" role="dialog" aria-modal="false" aria-labelledby="saveCardTitle" hidden>
+  <h2 id="saveCardTitle">Save this answer to the NTXP Form Fill database?</h2>
+  <p class="save-label" id="saveCardLabel"></p>
+  <p class="save-diff"><span id="saveCardOld" class="old"></span> <span aria-hidden="true">→</span><span class="sr-only">changed to</span> <span id="saveCardNew" class="new"></span></p>
+  <div class="save-actions">
+    <button type="button" id="saveYes" class="btn primary">Save to database</button>
+    <button type="button" id="saveNo" class="btn">Ignore this time</button>
+  </div>
+</section>
+
+<dialog id="sigDialog" class="dialog" aria-labelledby="sigDialogTitle">
+  <h2 id="sigDialogTitle">Approve signature (Tier 3)</h2>
+  <p>The unsigned final PDF is generated first; its SHA-256 is recorded with your approval. Any change afterwards voids the approval.</p>
+  <label class="field-row">Signer
+    <select id="sigSigner"></select>
+  </label>
+  <label class="field-row" id="sigCircRow">Circumstance (required for the alternate signatory)
+    <textarea id="sigCircumstance" rows="3"></textarea>
+  </label>
+  <label class="check-row"><input type="checkbox" id="sigConfirm"> I approve applying this signature to this exact document.</label>
+  <p id="sigError" class="error" role="alert"></p>
+  <pre id="sigSummary" class="summary" hidden></pre>
+  <div class="dialog-actions">
+    <button type="button" id="sigCancel" class="btn">Cancel</button>
+    <button type="button" id="sigApprove" class="btn primary">Approve and export</button>
+  </div>
+</dialog>
+
+<dialog id="proposalsDialog" class="dialog wide" aria-labelledby="propTitle">
+  <h2 id="propTitle">Drive scan proposals</h2>
+  <p id="scanMessage" class="scan-message" role="status"></p>
+  <p class="panel-note">Nothing is added until you check a line and press <strong>Apply approved</strong>.</p>
+  <ul id="proposalList" class="proposal-list"></ul>
+  <p id="propResult" class="prop-result" role="status"></p>
+  <div class="dialog-actions">
+    <button type="button" id="propClose" class="btn">Close</button>
+    <button type="button" id="propApply" class="btn primary">Apply approved</button>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="srLive" class="sr-only" aria-live="assertive"></div>
+</body>
+</html>
